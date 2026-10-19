@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_cards.html" import long_card %}
+{% block head %}{% if has_plyr %}<link rel="stylesheet" href="/static/vendor/plyr/plyr.css">{% endif %}{% endblock %}
+{% block main %}
+<div class="watch">
+  <div class="main-col">
+    <div class="player" id="player-box">
+      {% if playable %}
+      <video id="player" playsinline controls preload="metadata" poster="/thumb/{{ v.id }}.jpg" data-sid="{{ v.id }}"><source src="/stream/{{ v.id }}" type="{{ doc.mime }}"></video>
+      {% else %}
+      <div class="noplay"><img src="/thumb/{{ v.id }}.jpg" alt=""><p>Your browser cannot play this file format. Download it or open it in an external player.</p></div>
+      {% endif %}
+    </div>
+    <h1 class="wtitle">{{ v.title }}</h1>
+    <p class="muted" id="meta" data-sid="{{ v.id }}">{{ v.views|views }}{% if doc.added %} · {{ doc.added|ago }}{% endif %} · {{ v.size|size }}{% if v.quality %} · <span class="tag">{{ v.quality }}</span>{% endif %}</p>
+    <div class="actions">
+      <a class="btn" href="{{ v.urls.download if dl_public else v.urls.telegram }}" {% if dl_public %}download{% endif %}>Download</a>
+      <button class="btn ghost" type="button" id="copy" data-url="{{ v.urls.page }}">Copy link</button>
+      <a class="btn ghost" href="{{ v.urls.telegram }}" rel="noopener">Open in Telegram</a>
+    </div>
+    <div class="actions ext" data-url="{{ v.urls.stream }}" data-title="{{ v.title }}">
+      <span class="muted">Open in</span>
+      <a class="btn ghost" data-app="vlc" href="#">VLC</a>
+      <a class="btn ghost" data-app="mx" href="#">MX Player</a>
+      <a class="btn ghost" data-app="playit" href="#">PlayIt</a>
+    </div>
+  </div>
+  <aside class="side" aria-label="Suggested videos">
+    <h2>Suggested</h2>
+    <div class="list" id="sugg-list">{% for s in suggestions %}{{ long_card(s) }}{% endfor %}</div>
+    <div class="more"><button class="btn ghost" id="sugg-more" type="button" data-sid="{{ v.id }}">Load more</button></div>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if has_plyr and playable %}<script src="/static/vendor/plyr/plyr.min.js"></script>{% endif %}
+<script type="module" src="{{ asset('watch.js') }}"></script>
+{% endblock %}

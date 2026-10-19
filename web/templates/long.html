@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "_cards.html" import long_card, empty %}
+{% block main %}
+<div class="wrap">
+<div class="sec-head"><h1>Long videos</h1><span class="muted">{{ total }} videos</span></div>
+<div class="chips" role="group" aria-label="Sort and filter">
+  {% for s, label in [('new','Newest'),('views','Popular'),('random','Random')] %}
+  <a class="chip" href="/long?sort={{ s }}&quality={{ f.quality }}" {% if f.sort == s %}aria-current="true"{% endif %}>{{ label }}</a>
+  {% endfor %}
+  <span class="sep"></span>
+  {% for qn in ['480p','720p','1080p','2160p'] %}
+  <a class="chip" href="/long?sort={{ f.sort }}&quality={{ '' if f.quality == qn else qn }}" {% if f.quality == qn %}aria-current="true"{% endif %}>{{ qn }}</a>
+  {% endfor %}
+</div>
+{% if items %}
+<div class="grid" id="grid">{% for v in items %}{{ long_card(v) }}{% endfor %}</div>
+<div id="sentinel" class="sentinel" data-api="/api/v1/videos?kind=long&sort={{ f.sort }}&quality={{ f.quality }}" data-page="1" data-target="grid" {% if not more %}hidden{% endif %}></div>
+{% else %}{{ empty("No videos match.") }}{% endif %}
+</div>
+{% endblock %}

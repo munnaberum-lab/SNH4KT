@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ meta.title or ('Shorts · ' ~ site) }}</title>
+<meta name="description" content="{{ meta.description }}">
+<link rel="canonical" href="{{ meta.canonical }}">
+<meta property="og:title" content="{{ meta.title or ('Shorts · ' ~ site) }}"><meta property="og:type" content="video.other">
+<meta property="og:image" content="{{ meta.image }}"><meta property="og:url" content="{{ meta.canonical }}">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{ asset('app.css') }}">
+</head>
+<body class="shorts-body" data-dl-public="{{ 1 if dl_public else 0 }}" data-bot="{{ bot }}" data-sid="{{ sid }}" data-batch="{{ batch }}">
+<div class="feed" id="feed" tabindex="-1" aria-label="Shorts"></div>
+<div class="navbtns" aria-hidden="false">
+  <button type="button" id="prev" aria-label="Previous short">↑</button>
+  <button type="button" id="next" aria-label="Next short">↓</button>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<noscript><p style="color:#fff;padding:24px">Shorts need JavaScript. <a href="/long" style="color:#fff">Browse long videos</a></p></noscript>
+<script type="module" src="{{ asset('shorts.js') }}"></script>
+</body>
+</html>

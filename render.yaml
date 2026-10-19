@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: filterbot
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - {key: BOT_TOKEN, sync: false}
+      - {key: API_ID, sync: false}
+      - {key: API_HASH, sync: false}
+      - {key: DATABASE_URI, sync: false}
+      - {key: ADMINS, sync: false}
+      - {key: LOG_CHANNEL, sync: false}
+      - {key: CHANNELS, sync: false}
+      - {key: BIN_CHANNEL, sync: false}
+      - {key: SECRET_KEY, generateValue: true}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_cards.html" import long_card, short_card, empty %}
+{% block main %}
+<div class="wrap">
+{% if not shorts and not longs %}
+  {{ empty("No videos yet. Add files to your channel and they will appear here.") }}
+{% endif %}
+{% if shorts %}
+<section aria-labelledby="h-shorts">
+  <div class="sec-head"><h2 id="h-shorts">Shorts</h2><a href="/shorts">See all</a></div>
+  <div class="shelf-wrap">
+    <button class="arrow left" type="button" aria-label="Scroll left" hidden>‹</button>
+    <div class="shelf" id="shelf">{% for v in shorts %}{{ short_card(v) }}{% endfor %}
+      <a class="scard end" href="/shorts"><span>See all<br>Shorts →</span></a></div>
+    <button class="arrow right" type="button" aria-label="Scroll right" hidden>›</button>
+  </div>
+</section>
+{% endif %}
+{% if longs %}
+<section aria-labelledby="h-long">
+  <div class="sec-head"><h2 id="h-long">Long videos</h2><a href="/long">See all</a></div>
+  <div class="grid" id="grid">{% for v in longs %}{{ long_card(v) }}{% endfor %}</div>
+  {% if more %}<div class="more"><button class="btn" id="more" type="button" data-api="/api/v1/videos?kind=long" data-page="1" data-target="grid">Show more</button></div>{% endif %}
+</section>
+{% endif %}
+{% if popular %}
+<section aria-labelledby="h-pop">
+  <div class="sec-head"><h2 id="h-pop">Popular</h2></div>
+  <div class="row">{% for v in popular %}{% if v.kind == 'short' %}{{ short_card(v) }}{% else %}{{ long_card(v) }}{% endif %}{% endfor %}</div>
+</section>
+{% endif %}
+</div>
+{% endblock %}

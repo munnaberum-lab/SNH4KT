@@ -1,0 +1,18 @@
+{% macro long_card(v) %}
+<a class="card" href="{{ v.urls.page }}">
+  <div class="thumb"><img src="/thumb/{{ v.id }}.jpg" width="640" height="360" loading="lazy" decoding="async" alt="">
+    {% if v.dur %}<span class="dur">{{ v.dur|duration }}</span>{% endif %}</div>
+  <h3>{{ v.title }}</h3>
+  <p>{{ v.views|views }}{% if v.added %} · {{ v.added|ago_iso }}{% endif %}</p>
+</a>
+{% endmacro %}
+
+{% macro short_card(v) %}
+<a class="scard" href="/shorts/{{ v.id }}">
+  <img src="/thumb/{{ v.id }}.jpg" width="360" height="640" loading="lazy" decoding="async" alt="">
+  <span class="play" aria-hidden="true">▶</span>
+  <span class="cap"><b>{{ v.title }}</b><i>{{ v.views|views }}</i></span>
+</a>
+{% endmacro %}
+
+{% macro empty(msg) %}<div class="state">{{ msg }}</div>{% endmacro %}

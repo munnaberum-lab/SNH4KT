@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ meta.title }}</title>
+<meta name="description" content="{{ meta.description }}">
+<link rel="canonical" href="{{ meta.canonical }}">
+<meta property="og:title" content="{{ meta.title }}"><meta property="og:description" content="{{ meta.description }}">
+<meta property="og:type" content="{{ meta.type }}"><meta property="og:image" content="{{ meta.image }}"><meta property="og:url" content="{{ meta.canonical }}">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{{ meta.title }}"><meta name="twitter:image" content="{{ meta.image }}">
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<script>try{var t=localStorage.getItem("theme");if(!t){t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="{{ asset('app.css') }}">
+{% if meta.jsonld %}<script type="application/ld+json">{{ meta.jsonld|safe }}</script>{% endif %}
+{% block head %}{% endblock %}
+</head>
+<body data-dl-public="{{ 1 if dl_public else 0 }}">
+<header class="top" role="banner">
+  <a class="brand" href="/"><img src="/static/logo.svg" width="28" height="28" alt=""><span>{{ site }}</span></a>
+  <form class="search" action="/search" method="get" role="search" autocomplete="off">
+    <input id="q" name="q" type="search" placeholder="Search videos" value="{{ q|default('') }}" aria-label="Search" aria-autocomplete="list" aria-controls="sugg">
+    <button type="submit" aria-label="Search">⌕</button>
+    <ul id="sugg" class="sugg" role="listbox" hidden></ul>
+  </form>
+  <nav class="tabs" aria-label="Main">
+    <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>Home</a>
+    <a href="/shorts" {% if request.path.startswith('/shorts') %}aria-current="page"{% endif %}>Shorts</a>
+    <a href="/long" {% if request.path.startswith('/long') or request.path.startswith('/watch') %}aria-current="page"{% endif %}>Long</a>
+  </nav>
+  <button class="icon" id="theme" type="button" aria-label="Toggle theme">◐</button>
+  <a class="icon only-m" href="/search" aria-label="Search">⌕</a>
+</header>
+<main id="main">
+{% block main %}{% endblock %}
+</main>
+<nav class="bottom" aria-label="Mobile">
+  <a href="/"><span>⌂</span>Home</a><a href="/shorts"><span>▶</span>Shorts</a><a href="/long"><span>▭</span>Long</a><a href="/search"><span>⌕</span>Search</a>
+</nav>
+<script type="module" src="{{ asset('app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

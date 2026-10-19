@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="wrap" id="admin" data-in="{{ 1 if logged_in else 0 }}">
+  <h1>Admin</h1>
+  <form id="login" class="login" {% if logged_in %}hidden{% endif %}>
+    <label>Password <input type="password" id="pw" autocomplete="current-password" required></label>
+    <button class="btn" type="submit">Log in</button><p class="muted" id="login-msg" role="alert"></p>
+  </form>
+  <div id="panel" {% if not logged_in %}hidden{% endif %}>
+    <div class="stats" id="stats"></div>
+    <div class="actions"><input id="aq" type="search" placeholder="Search by name" aria-label="Search"><button class="btn" id="asearch" type="button">Search</button><button class="btn ghost" id="logout" type="button">Log out</button></div>
+    <div class="table-wrap"><table class="atable"><thead><tr><th>Video</th><th>Kind</th><th>Views</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="more"><button class="btn ghost" id="amore" type="button" hidden>Load more</button></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ asset('admin.js') }}"></script>{% endblock %}
