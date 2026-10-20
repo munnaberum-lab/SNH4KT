@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_icons.html" import i %}
+{% block main %}
+<div class="container page narrow">
+  <div class="card-box auth-card">
+    {{ i('user', 'big') }}
+    <h1>Login</h1>
+    <p class="muted">Use the ID and password from the Telegram bot. Opening the website from the bot logs you in automatically.</p>
+    <form id="login-form" class="form" data-next="{{ next }}">
+      <label>ID <input name="id" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="20"></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required maxlength="64"></label>
+      <button class="btn" type="submit">Login</button>
+      <p class="form-msg" id="login-msg" role="alert"></p>
+    </form>
+    <div class="divider"><span>No ID yet?</span></div>
+    <a class="btn ghost wide" href="https://t.me/{{ bot }}?start=acct" rel="noopener">{{ i('send') }}<span>Create your ID on Telegram</span></a>
+    <p class="muted small">Your ID is made in the bot and can never be changed. You can see your password any time in the bot with /account.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ asset('account.js') }}"></script>{% endblock %}

@@ -1,3 +1,4 @@
+{% from "_icons.html" import i, sprite %}
 <!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -5,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ meta.title }}</title>
 <meta name="description" content="{{ meta.description }}">
+<meta name="theme-color" content="#0a0a0f">
 <link rel="canonical" href="{{ meta.canonical }}">
 <meta property="og:title" content="{{ meta.title }}"><meta property="og:description" content="{{ meta.description }}">
 <meta property="og:type" content="{{ meta.type }}"><meta property="og:image" content="{{ meta.image }}"><meta property="og:url" content="{{ meta.canonical }}">
@@ -15,29 +17,48 @@
 {% if meta.jsonld %}<script type="application/ld+json">{{ meta.jsonld|safe }}</script>{% endif %}
 {% block head %}{% endblock %}
 </head>
-<body data-dl-public="{{ 1 if dl_public else 0 }}">
-<header class="top" role="banner">
-  <a class="brand" href="/"><img src="/static/logo.svg" width="28" height="28" alt=""><span>{{ site }}</span></a>
-  <form class="search" action="/search" method="get" role="search" autocomplete="off">
-    <input id="q" name="q" type="search" placeholder="Search videos" value="{{ q|default('') }}" aria-label="Search" aria-autocomplete="list" aria-controls="sugg">
-    <button type="submit" aria-label="Search">⌕</button>
-    <ul id="sugg" class="sugg" role="listbox" hidden></ul>
-  </form>
-  <nav class="tabs" aria-label="Main">
-    <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>Home</a>
-    <a href="/shorts" {% if request.path.startswith('/shorts') %}aria-current="page"{% endif %}>Shorts</a>
-    <a href="/long" {% if request.path.startswith('/long') or request.path.startswith('/watch') %}aria-current="page"{% endif %}>Long</a>
-  </nav>
-  <button class="icon" id="theme" type="button" aria-label="Toggle theme">◐</button>
-  <a class="icon only-m" href="/search" aria-label="Search">⌕</a>
+<body data-dl-public="{{ 1 if dl_public else 0 }}" data-user="{{ user.aid if user else '' }}" data-bot="{{ bot }}">
+{{ sprite() }}
+<a class="skip" href="#main">Skip to content</a>
+<header class="top" id="top" role="banner">
+  <div class="top-in container">
+    <a class="brand" href="/" aria-label="{{ site }} home"><img src="/static/logo.svg" width="32" height="32" alt=""><span>{{ site }}</span></a>
+    <form class="search" id="search" action="/search" method="get" role="search" autocomplete="off">
+      <input id="q" name="q" type="search" placeholder="Search videos, tags…" value="{{ q|default('') }}" aria-label="Search" aria-autocomplete="list" aria-controls="sugg" enterkeyhint="search">
+      <button type="submit" aria-label="Search">{{ i('search') }}</button>
+      <button type="button" class="close-search" id="close-search" aria-label="Close search">{{ i('close') }}</button>
+      <ul id="sugg" class="sugg" role="listbox" hidden></ul>
+    </form>
+    <nav class="tabs" aria-label="Main">
+      <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>{{ i('home') }}<span>Home</span></a>
+      <a href="/shorts" {% if request.path.startswith('/shorts') %}aria-current="page"{% endif %}>{{ i('shorts') }}<span>Shorts</span></a>
+      <a href="/long" {% if request.path.startswith('/long') or request.path.startswith('/watch') %}aria-current="page"{% endif %}>{{ i('film') }}<span>Videos</span></a>
+    </nav>
+    <div class="top-actions">
+      <button class="icon only-m" id="open-search" type="button" aria-label="Search">{{ i('search') }}</button>
+      {% if user %}<a class="user-chip" href="/account" aria-label="My account">{{ i('user') }}<span>{{ user.aid }}</span></a>{% else %}<a class="btn sm" href="/login?next={{ request.path|urlencode }}">Login</a>{% endif %}
+      <button class="icon" id="theme" type="button" aria-label="Toggle theme"><span class="for-dark">{{ i('sun') }}</span><span class="for-light">{{ i('moon') }}</span></button>
+    </div>
+  </div>
 </header>
 <main id="main">
 {% block main %}{% endblock %}
 </main>
+<footer class="foot">
+  <div class="container foot-in">
+    <a class="brand sm" href="/"><img src="/static/logo.svg" width="24" height="24" alt=""><span>{{ site }}</span></a>
+    <p class="muted">{{ meta.description }}</p>
+    <nav aria-label="Footer"><a href="/">Home</a><a href="/library">Library</a><a href="/shorts">Shorts</a><a href="/long">Videos</a>{% if bot %}<a href="https://t.me/{{ bot }}" rel="noopener">Telegram bot</a>{% endif %}{% if channel %}<a href="{{ channel }}" rel="noopener">Channel</a>{% endif %}</nav>
+  </div>
+</footer>
 <nav class="bottom" aria-label="Mobile">
-  <a href="/"><span>⌂</span>Home</a><a href="/shorts"><span>▶</span>Shorts</a><a href="/long"><span>▭</span>Long</a><a href="/search"><span>⌕</span>Search</a>
+  <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>{{ i('home') }}<span>Home</span></a>
+  <a href="/shorts" {% if request.path.startswith('/shorts') %}aria-current="page"{% endif %}>{{ i('shorts') }}<span>Shorts</span></a>
+  <a href="/long" {% if request.path.startswith('/long') or request.path.startswith('/watch') %}aria-current="page"{% endif %}>{{ i('film') }}<span>Videos</span></a>
+  <a href="/library" {% if request.path.startswith('/library') %}aria-current="page"{% endif %}>{{ i('heart') }}<span>Library</span></a>
 </nav>
 <script type="module" src="{{ asset('app.js') }}"></script>
+<script type="module" src="{{ asset('social.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

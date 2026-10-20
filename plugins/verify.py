@@ -5,7 +5,7 @@ import info
 import texts
 from bothelpers import deep
 from database import verify as vdb
-from utils import shorten
+from utils import sc, shorten
 
 
 async def prompt(uid, pending):
@@ -14,9 +14,9 @@ async def prompt(uid, pending):
     url = await shorten(url, info.VERIFY_SHORTLINK_URL, info.VERIFY_SHORTLINK_API)
     if info.VERIFY_SECOND_SHORTNER:
         url = await shorten(url, info.VERIFY_SND_SHORTLINK_URL, info.VERIFY_SND_SHORTLINK_API)
-    rows = [[InlineKeyboardButton("✅ Verify", url=url)]]
+    rows = [[InlineKeyboardButton("✅ " + sc("verify now"), url=url)]]
     if info.VERIFY_TUTORIAL:
-        rows.append([InlineKeyboardButton("❓ How to verify", url=info.VERIFY_TUTORIAL)])
+        rows.append([InlineKeyboardButton("❓ " + sc("how to verify"), url=info.VERIFY_TUTORIAL)])
     return texts.VERIFY_NEEDED, InlineKeyboardMarkup(rows)
 
 

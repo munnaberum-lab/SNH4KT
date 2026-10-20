@@ -1,17 +1,54 @@
 {% extends "base.html" %}
+{% from "_icons.html" import i %}
 {% block main %}
-<div class="wrap" id="admin" data-in="{{ 1 if logged_in else 0 }}">
-  <h1>Admin</h1>
-  <form id="login" class="login" {% if logged_in %}hidden{% endif %}>
-    <label>Password <input type="password" id="pw" autocomplete="current-password" required></label>
-    <button class="btn" type="submit">Log in</button><p class="muted" id="login-msg" role="alert"></p>
-  </form>
-  <div id="panel" {% if not logged_in %}hidden{% endif %}>
-    <div class="stats" id="stats"></div>
-    <div class="actions"><input id="aq" type="search" placeholder="Search by name" aria-label="Search"><button class="btn" id="asearch" type="button">Search</button><button class="btn ghost" id="logout" type="button">Log out</button></div>
-    <div class="table-wrap"><table class="atable"><thead><tr><th>Video</th><th>Kind</th><th>Views</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
-    <div class="more"><button class="btn ghost" id="amore" type="button" hidden>Load more</button></div>
+<div class="container page" id="admin" data-in="{{ 1 if admin_in else 0 }}">
+  <div class="page-head"><h1>Admin</h1></div>
+  <div id="gate" class="card-box auth-card" {% if admin_in %}hidden{% endif %}>
+    <p class="muted">Owners only. Login with your account ID and password. A code is then sent to your Telegram.</p>
+    <form id="a-login" class="form">
+      <label>ID <input name="id" autocomplete="username" autocapitalize="none" required maxlength="20"></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required maxlength="64"></label>
+      <button class="btn" type="submit">Send code</button>
+    </form>
+    <form id="a-code" class="form" hidden>
+      <label>Code from Telegram <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
+      <button class="btn" type="submit">Verify</button>
+    </form>
+    <p class="form-msg" id="a-msg" role="alert"></p>
   </div>
+  <div id="panel" {% if not admin_in %}hidden{% endif %}>
+    <div class="chips" role="tablist">
+      <button class="chip" role="tab" data-tab="videos" aria-current="true">Videos</button><button class="chip" role="tab" data-tab="settings">Access rules</button>
+      <button class="chip" role="tab" data-tab="users">Users</button><button class="chip" role="tab" data-tab="audit">Activity</button>
+      <button class="chip" id="a-logout" type="button">Logout</button>
+    </div>
+    <div class="stats" id="stats"></div>
+    <section id="tab-videos">
+      <div class="admin-bar"><input id="aq" type="search" placeholder="Search by name or tag" aria-label="Search">
+        <select id="afilter" aria-label="Filter"><option value="">All</option><option value="premium">Premium only</option><option value="hidden">Hidden</option></select>
+        <button class="btn" id="asearch" type="button">Search</button></div>
+      <div class="bulk" id="bulk" hidden><span id="bulk-n"></span>
+        <button class="btn ghost sm" data-bulk="premium:1">Make premium</button><button class="btn ghost sm" data-bulk="premium:0">Make free</button>
+        <button class="btn ghost sm" data-bulk="hidden:1">Hide</button><button class="btn ghost sm" data-bulk="hidden:0">Show</button>
+        <button class="btn ghost sm" data-bulk="add_tag">Add tag</button><button class="btn ghost sm" data-bulk="remove_tag">Remove tag</button></div>
+      <div class="table-wrap"><table class="atable"><thead><tr><th><input type="checkbox" id="selall" aria-label="Select all"></th><th>Video</th><th>Kind</th><th>Views</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div class="more"><button class="btn ghost" id="amore" type="button" hidden>Load more</button></div>
+    </section>
+    <section id="tab-settings" hidden>
+      <div class="card-box"><h2>Access rules</h2><p class="muted">With premium mode off, everything is free for everyone.</p><form id="cfg-form" class="form cfg"></form></div>
+    </section>
+    <section id="tab-users" hidden>
+      <div class="admin-bar"><input id="uq" type="search" placeholder="Telegram ID or account ID" aria-label="Find user"><button class="btn" id="usearch" type="button">Find</button></div>
+      <div id="ubox"></div>
+    </section>
+    <section id="tab-audit" hidden><div class="table-wrap"><table class="atable"><thead><tr><th>Time</th><th>Owner</th><th>Action</th><th>Details</th><th>IP</th></tr></thead><tbody id="arows"></tbody></table></div></section>
+  </div>
+  <dialog id="edit" class="modal"><form method="dialog" id="edit-form" class="form"><h2>Edit video</h2>
+    <label>Name <input name="title" maxlength="300" required></label>
+    <label>Tags (comma separated) <input name="tags" placeholder="action, hindi, 2024"></label>
+    <label class="check"><input type="checkbox" name="premium"> Premium only</label><label class="check"><input type="checkbox" name="hidden"> Hidden</label>
+    <label>Kind <select name="kind_set"><option value="">Automatic</option><option value="short">Short</option><option value="long">Long</option></select></label>
+    <div class="actions"><button class="btn" value="save">Save</button><button class="btn ghost" value="cancel" formnovalidate>Cancel</button></div></form></dialog>
 </div>
 {% endblock %}
 {% block scripts %}<script type="module" src="{{ asset('admin.js') }}"></script>{% endblock %}

@@ -23,10 +23,21 @@ class Skeleton(unittest.TestCase):
         self.assertEqual(r.stdout.split(), ["False", "False", "False", "True", "True", "True"])
 
     def test_no_secret_has_a_default(self):
-        env = {k: v for k, v in os.environ.items() if k not in ("BOT_TOKEN", "API_HASH", "DATABASE_URI", "SECRET_KEY", "WEB_ADMIN_PASSWORD", "TMDB_API_KEY")}
-        code = "import info;print(repr((info.BOT_TOKEN,info.API_HASH,info.DATABASE_URI,info.SECRET_KEY,info.WEB_ADMIN_PASSWORD,info.TMDB_API_KEY)))"
+        env = {k: v for k, v in os.environ.items() if k not in ("BOT_TOKEN", "API_HASH", "DATABASE_URI", "SECRET_KEY", "TMDB_API_KEY")}
+        code = "import info;print(repr((info.BOT_TOKEN,info.API_HASH,info.DATABASE_URI,info.SECRET_KEY,info.TMDB_API_KEY)))"
         r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
-        self.assertEqual(r.stdout.strip(), "('', '', '', '', '', '')")
+        self.assertEqual(r.stdout.strip(), "('', '', '', '', '')")
+
+    def test_secret_key_is_required_and_database_names(self):
+        env = {k: v for k, v in os.environ.items() if k != "SECRET_KEY"}
+        env.update(BOT_TOKEN="1:a", API_ID="1", API_HASH="x", DATABASE_URI="mongodb://x", ADMINS="1", LOG_CHANNEL="-100", CHANNELS="-100")
+        r = subprocess.run([sys.executable, "bot.py"], cwd=ROOT, env=env, capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("SECRET_KEY", r.stderr)
+        env.pop("DATABASE_NAME", None)
+        env.pop("COLLECTION_NAME", None)
+        r = subprocess.run([sys.executable, "-c", "import info;print(info.DATABASE_NAME, info.COLLECTION_NAME)"], cwd=ROOT, env=env, capture_output=True, text=True)
+        self.assertEqual(r.stdout.split(), ["Dotxseyabot", "SEYA"])
 
     def test_multi_tokens_collected_in_order(self):
         env = dict(os.environ, MULTI_TOKEN2="b", MULTI_TOKEN1="a", MULTI_TOKEN10="j")

@@ -5,7 +5,7 @@ from xml.sax.saxutils import escape
 
 def robots_txt(base):
     lines = ["User-agent: *", "Disallow: /stream", "Disallow: /download", "Disallow: /thumb",
-             "Disallow: /api", "Disallow: /admin", f"Sitemap: {base}/sitemap.xml", ""]
+             "Disallow: /api", "Disallow: /admin", "Disallow: /account", "Disallow: /library", "Disallow: /auth", "Disallow: /login", f"Sitemap: {base}/sitemap.xml", ""]
     return "\n".join(lines)
 
 

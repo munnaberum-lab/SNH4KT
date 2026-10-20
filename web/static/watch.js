@@ -27,16 +27,13 @@ if (video) {
   });
   video.addEventListener("ended", () => store.del(key));
 } else {
-  // browsers cannot play this file: external player buttons first
-  const ext = $(".ext");
-  const first = $(".actions");
-  if (ext && first) first.before(ext);
+  $(".ext")?.setAttribute("open", "");  // file cannot play in a browser: show the external players right away
 }
 
 $("#copy")?.addEventListener("click", async (e) => {
-  const b = e.currentTarget;
-  try { await navigator.clipboard.writeText(b.dataset.url); b.textContent = "Copied"; } catch (err) { prompt("Copy this link", b.dataset.url); }
-  setTimeout(() => (b.textContent = "Copy link"), 1500);
+  const b = e.currentTarget, lbl = b.querySelector(".lbl") || b;
+  try { await navigator.clipboard.writeText(b.dataset.url); lbl.textContent = "Copied"; } catch (err) { prompt("Copy this link", b.dataset.url); }
+  setTimeout(() => (lbl.textContent = "Copy link"), 1500);
 });
 
 const ext = $(".ext");
@@ -48,6 +45,7 @@ if (ext) {
   ext.querySelector('[data-app="playit"]').href = `playit://playerv2/video?url=${e(url)}&title=${e(title)}`;
 }
 
+document.addEventListener("click", (e) => { const m = $(".ext"); if (m && m.open && !m.contains(e.target)) m.open = false; });
 const btn = $("#sugg-more"), list = $("#sugg-list");
 btn?.addEventListener("click", async () => {
   const have = [...list.querySelectorAll("a.card")].map((a) => a.getAttribute("href").split("/").pop());

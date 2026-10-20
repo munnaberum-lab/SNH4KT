@@ -1,25 +1,28 @@
 {% extends "base.html" %}
 {% from "_cards.html" import long_card, short_card, empty %}
+{% from "_icons.html" import i %}
 {% block main %}
-<div class="wrap">
+<div class="container page">
+<div class="page-head"><h1>{% if tag %}{{ i('tag') }} #{{ tag }}{% elif q %}Results for “{{ q }}”{% else %}Search{% endif %}</h1>{% if q or tag %}<span class="muted">{{ total }} result{{ '' if total == 1 else 's' }}</span>{% endif %}</div>
+{% if corrected %}<p class="notice">Showing results for <b>{{ corrected }}</b> (no exact match for “{{ q }}”).</p>{% endif %}
 <div class="chips" role="group" aria-label="Filters">
-  {% for k, label in [('all','All'),('short','Shorts'),('long','Long')] %}
-  <a class="chip" href="/search?q={{ q|urlencode }}&kind={{ k }}&quality={{ f.quality }}&lang={{ f.lang }}&year={{ f.year }}" {% if kind == k %}aria-current="true"{% endif %}>{{ label }}</a>
+  {% for k, label in [('all','All'),('short','Shorts'),('long','Videos')] %}
+  <a class="chip" href="/search?q={{ q|urlencode }}&tag={{ tag|urlencode }}&kind={{ k }}&quality={{ f.quality }}&lang={{ f.lang }}&year={{ f.year }}" {% if kind == k %}aria-current="true"{% endif %}>{{ label }}</a>
   {% endfor %}
   <span class="sep"></span>
   {% for qn in ['720p','1080p'] %}
-  <a class="chip" href="/search?q={{ q|urlencode }}&kind={{ kind }}&quality={{ '' if f.quality == qn else qn }}&lang={{ f.lang }}&year={{ f.year }}" {% if f.quality == qn %}aria-current="true"{% endif %}>{{ qn }}</a>
+  <a class="chip" href="/search?q={{ q|urlencode }}&tag={{ tag|urlencode }}&kind={{ kind }}&quality={{ '' if f.quality == qn else qn }}&lang={{ f.lang }}&year={{ f.year }}" {% if f.quality == qn %}aria-current="true"{% endif %}>{{ qn }}</a>
   {% endfor %}
   {% for lg in ['hindi','english','tamil','malayalam'] %}
-  <a class="chip" href="/search?q={{ q|urlencode }}&kind={{ kind }}&quality={{ f.quality }}&lang={{ '' if f.lang == lg else lg }}&year={{ f.year }}" {% if f.lang == lg %}aria-current="true"{% endif %}>{{ lg|capitalize }}</a>
+  <a class="chip" href="/search?q={{ q|urlencode }}&tag={{ tag|urlencode }}&kind={{ kind }}&quality={{ f.quality }}&lang={{ '' if f.lang == lg else lg }}&year={{ f.year }}" {% if f.lang == lg %}aria-current="true"{% endif %}>{{ lg|capitalize }}</a>
   {% endfor %}
 </div>
-{% if not q %}{{ empty("Type something to search.") }}
-{% elif not items %}{{ empty("No results for “" ~ q ~ "”.") }}
+{% if not q and not tag %}{{ empty("Type a name in the search box above.", 'search') }}
+{% elif not items %}{{ empty("Nothing found. Try a shorter word or check the spelling.", 'search') }}
 {% else %}
-<p class="muted">{{ total }} result{{ '' if total == 1 else 's' }} for “{{ q }}”</p>
+{% if tags and not tag %}<div class="chips tagrow">{% for t in tags %}<a class="chip" href="/tag/{{ t|urlencode }}">#{{ t }}</a>{% endfor %}</div>{% endif %}
 <div class="grid" id="grid">{% for v in items %}{% if v.kind == 'short' %}{{ short_card(v) }}{% else %}{{ long_card(v) }}{% endif %}{% endfor %}</div>
-{% if more %}<div class="more"><button class="btn" id="more" type="button" data-api="/api/v1/videos?kind={{ kind }}&q={{ q|urlencode }}&quality={{ f.quality }}&lang={{ f.lang }}&year={{ f.year }}" data-page="1" data-target="grid">Show more</button></div>{% endif %}
+{% if more %}<div class="more"><button class="btn ghost" id="more" type="button" data-api="/api/v1/videos?kind={{ kind }}&tag={{ tag|urlencode }}&q={{ q|urlencode }}&quality={{ f.quality }}&lang={{ f.lang }}&year={{ f.year }}" data-page="1" data-target="grid">Show more</button></div>{% endif %}
 {% endif %}
 </div>
 {% endblock %}

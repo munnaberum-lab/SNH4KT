@@ -36,7 +36,10 @@ def _install_aiohttp():
     class HTTPException(Exception):
         def __init__(self, location=None, **kw):
             super().__init__(location)
-            self.location = location
+            self.location, self.cookies_set = location, []
+
+        def set_cookie(self, *a, **k):
+            self.cookies_set.append((a, k))
 
     web.Response, web.StreamResponse = Resp, StreamResponse
     web.json_response = lambda data, status=200, headers=None, **kw: Resp(data=data, status=status, headers=headers)

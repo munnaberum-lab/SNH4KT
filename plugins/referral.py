@@ -3,6 +3,7 @@ import logging
 
 from pyrogram import Client, enums, filters
 
+import config
 import info
 import texts
 from bothelpers import deep, say
@@ -13,7 +14,7 @@ log = logging.getLogger("referral")
 
 async def on_start(client, user, payload, is_new):
     """ref-<owner uid>: counts only for brand new users; reward triggers once per REFERRAL_COUNT."""
-    if not info.PREMIUM_AND_REFERRAL_MODE or not is_new:
+    if not (await config.get())["premium_mode"] or not is_new:
         return
     owner = payload[4:]
     if not owner.isdigit() or int(owner) == user.id or not await users.get(int(owner)):
@@ -32,7 +33,7 @@ async def info_text(uid):
 
 @Client.on_message(filters.command(["refer", "referral"]) & filters.private)
 async def refer_cmd(client, message):
-    if not info.PREMIUM_AND_REFERRAL_MODE:
+    if not (await config.get())["premium_mode"]:
         return
     await say(client, message.chat.id, await info_text(message.from_user.id))
 
@@ -40,5 +41,5 @@ async def refer_cmd(client, message):
 @Client.on_callback_query(filters.regex(r"^refer$"))
 async def refer_cb(client, query):
     await query.answer()
-    if info.PREMIUM_AND_REFERRAL_MODE:
+    if (await config.get())["premium_mode"]:
         await say(client, query.message.chat.id, await info_text(query.from_user.id))

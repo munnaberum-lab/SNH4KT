@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_icons.html" import i %}
+{% block main %}
+<div class="container page narrow">
+  <div class="page-head"><h1>My account</h1></div>
+  <div class="card-box acc-grid">
+    <div><span class="muted">ID</span><b class="big-id">{{ user.aid }}</b></div>
+    <div><span class="muted">Plan</span><b>{% if premium_days or is_owner %}{{ i('crown') }} Premium{% if premium_days %} · {{ premium_days }} days left{% endif %}{% else %}Free{% endif %}</b></div>
+  </div>
+  <div class="actions"><a class="btn ghost" href="/library">{{ i('heart') }}<span>Likes &amp; playlists</span></a>{% if bot %}<a class="btn ghost" href="https://t.me/{{ bot }}?start=plan" rel="noopener">{{ i('crown') }}<span>Premium</span></a>{% endif %}{% if is_owner %}<a class="btn ghost" href="/admin">{{ i('lock') }}<span>Admin panel</span></a>{% endif %}<button class="btn ghost" id="logout" type="button">Logout</button></div>
+  <div class="card-box" style="margin-top:20px">
+    <h2>Change password</h2>
+    <form id="pw-form" class="form">
+      <label>Current password <input name="current" type="password" autocomplete="current-password" required maxlength="64"></label>
+      <label>New password <input name="new" type="password" autocomplete="new-password" required minlength="8" maxlength="64"></label>
+      <button class="btn" type="submit">Save password</button><p class="form-msg" id="pw-msg" role="alert"></p>
+    </form>
+    <p class="muted small">Forgot it? Open the bot and send /account to see your password. The ID itself can never be changed.</p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ asset('account.js') }}"></script>{% endblock %}

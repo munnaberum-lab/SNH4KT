@@ -1,7 +1,10 @@
+{% from "_icons.html" import i %}
 {% macro long_card(v) %}
 <a class="card" href="{{ v.urls.page }}">
   <div class="thumb"><img src="/thumb/{{ v.id }}.jpg" width="640" height="360" loading="lazy" decoding="async" alt="">
-    {% if v.dur %}<span class="dur">{{ v.dur|duration }}</span>{% endif %}</div>
+    {% if v.premium %}<span class="badge prem">{{ i('crown') }} PREMIUM</span>{% elif v.quality %}<span class="badge">{{ v.quality }}</span>{% endif %}
+    {% if v.dur %}<span class="dur">{{ v.dur|duration }}</span>{% endif %}
+    <span class="hover-play">{{ i('play') }}</span></div>
   <h3>{{ v.title }}</h3>
   <p>{{ v.views|views }}{% if v.added %} · {{ v.added|ago_iso }}{% endif %}</p>
 </a>
@@ -10,9 +13,9 @@
 {% macro short_card(v) %}
 <a class="scard" href="/shorts/{{ v.id }}">
   <img src="/thumb/{{ v.id }}.jpg" width="360" height="640" loading="lazy" decoding="async" alt="">
-  <span class="play" aria-hidden="true">▶</span>
+  {% if v.premium %}<span class="badge prem">{{ i('crown') }}</span>{% endif %}<span class="play" aria-hidden="true">{{ i('play') }}</span>
   <span class="cap"><b>{{ v.title }}</b><i>{{ v.views|views }}</i></span>
 </a>
 {% endmacro %}
 
-{% macro empty(msg) %}<div class="state">{{ msg }}</div>{% endmacro %}
+{% macro empty(msg, icon='film') %}<div class="state">{{ i(icon, 'big') }}<p>{{ msg }}</p></div>{% endmacro %}

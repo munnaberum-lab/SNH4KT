@@ -1,3 +1,4 @@
+{% from "_icons.html" import i, sprite %}
 <!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -5,20 +6,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ meta.title or ('Shorts · ' ~ site) }}</title>
 <meta name="description" content="{{ meta.description }}">
+<meta name="theme-color" content="#000000">
 <link rel="canonical" href="{{ meta.canonical }}">
 <meta property="og:title" content="{{ meta.title or ('Shorts · ' ~ site) }}"><meta property="og:type" content="video.other">
 <meta property="og:image" content="{{ meta.image }}"><meta property="og:url" content="{{ meta.canonical }}">
 <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="{{ asset('app.css') }}">
 </head>
-<body class="shorts-body" data-dl-public="{{ 1 if dl_public else 0 }}" data-bot="{{ bot }}" data-sid="{{ sid }}" data-batch="{{ batch }}">
+<body class="shorts-body" data-dl-public="{{ 1 if dl_public else 0 }}" data-bot="{{ bot }}" data-sid="{{ sid }}" data-batch="{{ batch }}" data-user="{{ user.aid if user else '' }}">
+{{ sprite() }}
 <div class="feed" id="feed" tabindex="-1" aria-label="Shorts"></div>
-<div class="navbtns" aria-hidden="false">
-  <button type="button" id="prev" aria-label="Previous short">↑</button>
-  <button type="button" id="next" aria-label="Next short">↓</button>
+<div class="navbtns">
+  <button type="button" id="prev" aria-label="Previous short">{{ i('up') }}</button>
+  <button type="button" id="next" aria-label="Next short">{{ i('down') }}</button>
 </div>
+<a class="home-pill" href="/" aria-label="Home">{{ i('home') }}<span>{{ site }}</span></a>
 <div class="toast" id="toast" role="status" hidden></div>
-<noscript><p style="color:#fff;padding:24px">Shorts need JavaScript. <a href="/long" style="color:#fff">Browse long videos</a></p></noscript>
+<noscript><p style="color:#fff;padding:24px">Shorts need JavaScript. <a href="/long" style="color:#fff">Browse videos</a></p></noscript>
+<script type="module" src="{{ asset('social.js') }}"></script>
 <script type="module" src="{{ asset('shorts.js') }}"></script>
 </body>
 </html>

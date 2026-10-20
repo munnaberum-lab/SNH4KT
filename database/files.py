@@ -1,10 +1,13 @@
 """The files collection: ingest storage, search, listing, counters."""
+import difflib
+import math
 import re
+import time
 from datetime import datetime
 
 import info
 from database import core
-from utils import rand_b62, utcnow
+from utils import make_tokens, rand_b62, utcnow
 
 PUBLIC = {"hidden": {"$ne": True}, "ok": {"$ne": False}, "kind": {"$in": ["short", "long"]}, "bin": {"$exists": True}}
 
@@ -182,8 +185,22 @@ def _public(extra=None):
     return q
 
 
+def relevance(doc, words, phrase):
+    """Higher is better: exact words, phrase in the title, tags, popularity."""
+    toks = set(doc.get("tokens") or [])
+    title = (doc.get("title") or doc.get("name") or "").lower()
+    score = sum(3 for w in words if w in toks) + sum(1 for w in words if w not in toks)
+    if phrase and phrase in title:
+        score += 6
+    if title.startswith(phrase):
+        score += 4
+    if set(words) & set(doc.get("tags") or []):
+        score += 3
+    return score + math.log1p(doc.get("views", 0)) * 0.3 + math.log1p(doc.get("likes", 0)) * 0.3
+
+
 async def list_videos(kind="all", sort="new", q=None, quality=None, lang=None, year=None,
-                      page=1, limit=12, include_hidden=False):
+                      page=1, limit=12, include_hidden=False, tag=None):
     base = {}
     if include_hidden:
         base["kind"] = {"$in": ["short", "long"]} if kind == "all" else kind
@@ -201,10 +218,21 @@ async def list_videos(kind="all", sort="new", q=None, quality=None, lang=None, y
         base["lang"] = lang.lower()
     if year:
         base["year"] = int(year)
+    if tag:
+        base["tags"] = tag.strip().lower()
     limit = max(1, min(int(limit), 50))
     page = max(1, int(page))
     skip = (page - 1) * limit
     total, docs = 0, []
+    qwords = re.findall(r"[a-z0-9]+", (q or "").lower())
+    if qwords and sort in ("new", "relevance"):  # search: best match first (candidates capped at 300)
+        cand = []
+        for c in core.files_cols():
+            async for d in c.find(base).limit(300):
+                cand.append(d)
+        phrase = " ".join(qwords)
+        cand.sort(key=lambda d: (relevance(d, qwords, phrase), d.get("added") or datetime.min), reverse=True)
+        return cand[skip:skip + limit], len(cand), skip + limit < len(cand)
     for c in core.files_cols():
         total += await c.count_documents(base)
         if sort == "random":
@@ -296,3 +324,84 @@ async def videos_without_bin():
             if d.get("type") == "video" or (d.get("mime") or "").startswith("video"):
                 out.append(d)
     return out
+
+
+# ---- tags, popular tags, spelling help ------------------------------------
+def clean_tags(tags):
+    out = []
+    for t in tags or []:
+        t = re.sub(r"[^a-z0-9 \-]", "", str(t).lower()).strip()[:30]
+        if t and t not in out:
+            out.append(t)
+    return out[:15]
+
+
+def retoken(doc_like, title=None, tags=None):
+    """Search tokens come from the display title and tags (so a rename fixes search too)."""
+    title = title if title is not None else (doc_like.get("title") or doc_like.get("name") or "")
+    tags = tags if tags is not None else doc_like.get("tags", [])
+    return make_tokens(title, " ".join(tags))
+
+
+_vocab = {"at": None, "words": []}      # None = never built (do not compare with 0: monotonic() can be small on a fresh machine)
+_tagcache = {"at": None, "tags": []}
+
+
+async def vocabulary():
+    if _vocab["at"] is None or time.monotonic() - _vocab["at"] > 600:
+        words = {}
+        for c in core.files_cols():
+            async for d in c.find({}, {"tokens": 1}).limit(20000):
+                for t in d.get("tokens") or []:
+                    if len(t) > 2:
+                        words[t] = words.get(t, 0) + 1
+        _vocab.update(at=time.monotonic(), words=sorted(words, key=words.get, reverse=True)[:30000])
+    return _vocab["words"]
+
+
+async def fuzzy(q):
+    """Fix small spelling mistakes using words that exist in the library. Returns the new query or None."""
+    words = re.findall(r"[a-z0-9]+", (q or "").lower())
+    vocab = await vocabulary()
+    fixed, changed = [], False
+    for w in words:
+        if len(w) < 3 or any(v.startswith(w) for v in vocab):
+            fixed.append(w)
+            continue
+        close = difflib.get_close_matches(w, vocab, n=1, cutoff=0.74 if len(w) > 3 else 0.8)
+        if close:
+            fixed.append(close[0])
+            changed = True
+        else:
+            fixed.append(w)
+    return " ".join(fixed) if changed else None
+
+
+async def popular_tags(limit=20):
+    if _tagcache["at"] is None or time.monotonic() - _tagcache["at"] > 300:
+        counts = {}
+        for c in core.files_cols():
+            async for d in c.find(_public(), {"tags": 1}).limit(20000):
+                for t in d.get("tags") or []:
+                    counts[t] = counts.get(t, 0) + 1
+        _tagcache.update(at=time.monotonic(), tags=sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+    return [t for t, _ in _tagcache["tags"][:limit]]
+
+
+def reset_caches():
+    _vocab["at"] = None
+    _tagcache["at"] = None
+
+
+async def set_premium(ids=None, value=True, kind=None):
+    """Premium-only flag. ids=None means every video (optionally only one kind). Returns how many changed."""
+    n = 0
+    flt = {"type": "video"}
+    if kind in ("short", "long"):
+        flt["kind"] = kind
+    if ids is not None:
+        flt = {"_id": {"$in": list(ids)}}
+    for c in core.files_cols():
+        r = await c.update_many(flt, {"$set": {"premium": bool(value)}})
+        n += r.modified_count
+    return n

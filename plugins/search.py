@@ -9,13 +9,14 @@ import info
 import metadata
 import texts
 from bothelpers import autodel, deep
-from database import files, groups, users
+from database import accounts, files, groups, users
 from plugins import delivery, fsub
-from utils import Cooldown, TTLCache, clean_query, esc, fmt, human_size, rand_b62
+from utils import sc, Cooldown, TTLCache, clean_query, esc, fmt, human_size, rand_b62
 
 log = logging.getLogger("search")
 SEARCH_CACHE = TTLCache(maxsize=3000, ttl=3600)  # key -> state (size limited, expires)
 _cooldown = Cooldown(info.SEARCH_COOLDOWN)
+_acct_hint = Cooldown(60)
 
 
 def gsuffix(chat_id):
@@ -42,17 +43,17 @@ async def render(key, offset=0):
     if sids:
         akey = rand_b62(8)
         delivery.SEND_ALL.set(akey, {"sids": sids})
-        rows.append([InlineKeyboardButton("📥 Send All", url=deep(f"all_{akey}{suffix}"))])
-    rows.append([InlineKeyboardButton("🎞 Quality", callback_data=f"fm#{key}#quality"),
-                 InlineKeyboardButton("🌐 Language", callback_data=f"fm#{key}#lang"),
-                 InlineKeyboardButton("📅 Year", callback_data=f"fm#{key}#year")])
-    rows.append([InlineKeyboardButton("📺 Season", callback_data=f"fm#{key}#season"),
-                 InlineKeyboardButton("🎬 Episode", callback_data=f"fm#{key}#episode")])
+        rows.append([InlineKeyboardButton("📥 " + sc("send all"), url=deep(f"all_{akey}{suffix}"))])
+    rows.append([InlineKeyboardButton("🎞 " + sc("quality"), callback_data=f"fm#{key}#quality"),
+                 InlineKeyboardButton("🌐 " + sc("language"), callback_data=f"fm#{key}#lang"),
+                 InlineKeyboardButton("📅 " + sc("year"), callback_data=f"fm#{key}#year")])
+    rows.append([InlineKeyboardButton("📺 " + sc("season"), callback_data=f"fm#{key}#season"),
+                 InlineKeyboardButton("🎬 " + sc("episode"), callback_data=f"fm#{key}#episode")])
     if st["filters"]:
-        rows.append([InlineKeyboardButton("✖ Clear filters", callback_data=f"fc#{key}")])
+        rows.append([InlineKeyboardButton("✖ " + sc("clear filters"), callback_data=f"fc#{key}")])
     lines = []
     for d in docs:
-        label = f"[{human_size(d.get('size', 0))}] {d.get('name', '')}"[:60]
+        label = f"[{human_size(d.get('size', 0))}] {d.get('title') or d.get('name', '')}"[:60]
         url = deep(f"{protect_pref}{d['sid']}{suffix}")
         if settings.get("button", info.BUTTON_MODE):
             rows.append([InlineKeyboardButton(label, url=url)])
@@ -62,10 +63,10 @@ async def render(key, offset=0):
     page = offset // per + 1
     nav = []
     if offset > 0:
-        nav.append(InlineKeyboardButton("⏪ Back", callback_data=f"nx#{key}#{max(0, offset - per)}"))
+        nav.append(InlineKeyboardButton("⏪ " + sc("back"), callback_data=f"nx#{key}#{max(0, offset - per)}"))
     nav.append(InlineKeyboardButton(f"{page}/{pages}", callback_data="noop"))
     if nxt != "":
-        nav.append(InlineKeyboardButton("Next ⏩", callback_data=f"nx#{key}#{nxt}"))
+        nav.append(InlineKeyboardButton(sc("next") + " ⏩", callback_data=f"nx#{key}#{nxt}"))
     if len(nav) > 1:
         rows.append(nav)
     head = texts.RESULTS_HEADER.format(total=total, query=esc(st["q"]))
@@ -116,12 +117,22 @@ async def on_text(client, message):
     q = clean_query(text)
     if not q or not _cooldown.hit(uid):
         return
+    if uid not in info.ADMINS and not await accounts.has_account(uid):
+        if _acct_hint.hit(uid):  # group: ask once a minute, never search for users without an account
+            m = await message.reply_text("🆔 " + sc("create your account first, then search."), quote=True,
+                                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🆔 " + sc("create account"), url=deep("acct"))]]))
+            await autodel(m)
+        return
     if info.SUPPORT_CHAT_ID and message.chat.id == info.SUPPORT_CHAT_ID:
         _, _, total = await files.search(q, 0, 1)
         if total:
             m = await message.reply_text(f"Found {total} files for <b>{esc(q)}</b>. Search in the main group to get them.", quote=True)
             await autodel(m)
         return
+    if await files.count_keyword(q) == 0:  # small typo? search the corrected words instead
+        fixed = await files.fuzzy(q)
+        if fixed:
+            q = fixed
     key = rand_b62(8)
     SEARCH_CACHE.set(key, {"uid": uid, "q": q, "chat": message.chat.id, "filters": {}, "settings": settings})
     out = await render(key, 0)
@@ -156,7 +167,7 @@ async def no_results(client, message, key, q, settings, private):
         st["sugg"] = [s["title"] for s in sugg]
         for i, s in enumerate(sugg):
             rows.append([InlineKeyboardButton(f"{s['title']} ({s['year']})"[:60], callback_data=f"sp#{key}#{i}")])
-    rows.append([InlineKeyboardButton("📝 Request this", callback_data=f"rq#{key}")])
+    rows.append([InlineKeyboardButton("📝 " + sc("request this"), callback_data=f"rq#{key}")])
     text = texts.NO_RESULT.format(query=esc(q)) + (f"\n\n{texts.DID_YOU_MEAN}" if len(rows) > 1 else "")
     m = await message.reply_text(text, reply_markup=InlineKeyboardMarkup(rows), quote=True)
     await autodel(m)

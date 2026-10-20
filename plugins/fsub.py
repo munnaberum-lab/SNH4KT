@@ -7,6 +7,7 @@ from pyrogram.types import ChatPermissions, InlineKeyboardButton, InlineKeyboard
 import info
 import texts
 from bothelpers import say
+from utils import sc
 from database import join_reqs
 
 log = logging.getLogger("fsub")
@@ -55,9 +56,9 @@ async def check(client, uid, payload=None):
     link = await invite_link(client, chan)
     rows = []
     if link:
-        rows.append([InlineKeyboardButton("📢 Join channel" if not info.REQUEST_TO_JOIN_MODE else "📨 Send join request", url=link)])
+        rows.append([InlineKeyboardButton("📢 " + sc("join channel") if not info.REQUEST_TO_JOIN_MODE else "📨 " + sc("send join request"), url=link)])
     if info.TRY_AGAIN_BTN and payload:
-        rows.append([InlineKeyboardButton("🔄 Try again", callback_data=f"chk#{payload}")])
+        rows.append([InlineKeyboardButton("🔄 " + sc("try again"), callback_data=f"chk#{payload}")])
     text = texts.JOIN_FIRST + (("\n\n" + texts.JOIN_REQ_SENT) if info.REQUEST_TO_JOIN_MODE else "")
     return text, InlineKeyboardMarkup(rows) if rows else None
 

@@ -38,6 +38,9 @@ async def middleware(request, handler):
         resp.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable" if versioned else "public, max-age=300")
     elif path.startswith("/api/v1/admin"):
         resp.headers["Cache-Control"] = "no-store"
+    ctype = getattr(resp, "content_type", "") or ""
+    if hasattr(resp, "enable_compression") and not path.startswith(("/stream", "/download", "/thumb")) and ctype.startswith(("text/", "application/json", "application/xml")):
+        resp.enable_compression()
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("Referrer-Policy", "same-origin")
     return resp

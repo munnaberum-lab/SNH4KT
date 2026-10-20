@@ -154,8 +154,9 @@ PER_IP_STREAMS = _int("PER_IP_STREAMS", 4)
 PING_INTERVAL = _int("PING_INTERVAL", 240)
 WEB_ENABLED = _bool("WEB_ENABLED", True)
 WEB_DOWNLOAD_PUBLIC = _bool("WEB_DOWNLOAD_PUBLIC", True)
-WEB_ADMIN_PASSWORD = _str("WEB_ADMIN_PASSWORD")
-SECRET_KEY = _str("SECRET_KEY")
+SECRET_KEY = _str("SECRET_KEY")  # REQUIRED: signs sessions and encrypts account passwords. Never change it later.
+SESSION_DAYS = _int("SESSION_DAYS", 30)
+ADMIN_SESSION_MINUTES = _int("ADMIN_SESSION_MINUTES", 120)
 PAGE_SIZE = _int("PAGE_SIZE", 12)
 SUGGEST_COUNT = _int("SUGGEST_COUNT", 12)
 SHORTS_BATCH = _int("SHORTS_BATCH", 10)
@@ -175,6 +176,6 @@ def missing():
     need = {
         "BOT_TOKEN": BOT_TOKEN, "API_ID": API_ID, "API_HASH": API_HASH,
         "DATABASE_URI": DATABASE_URI, "ADMINS": ADMINS,
-        "LOG_CHANNEL": LOG_CHANNEL, "CHANNELS": CHANNELS,
+        "LOG_CHANNEL": LOG_CHANNEL, "CHANNELS": CHANNELS, "SECRET_KEY": SECRET_KEY,
     }
     return [k for k, v in need.items() if not v]

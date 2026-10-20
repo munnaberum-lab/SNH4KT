@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% from "_cards.html" import long_card, short_card %}
+{% from "_icons.html" import i %}
 {% block main %}
-<div class="wrap">
-  <div class="state"><h1>Page not found</h1><p>The video may have been removed. Try a search.</p>
-    <form action="/search" method="get" class="search inline"><input name="q" type="search" placeholder="Search videos" aria-label="Search"><button type="submit" aria-label="Search">⌕</button></form></div>
-  {% if latest %}<div class="sec-head"><h2>Latest videos</h2></div>
+<div class="container page">
+  <div class="state big-state">{{ i('alert', 'big') }}<h1>Page not found</h1><p>The video may have been removed or the link is wrong.</p>
+    <div class="hero-cta"><a class="btn" href="/">{{ i('home') }}<span>Go home</span></a><a class="btn ghost" href="/search">{{ i('search') }}<span>Search</span></a></div></div>
+  {% if latest %}<div class="sec-head"><h2>{{ i('film') }} Latest videos</h2></div>
   <div class="grid">{% for v in latest %}{% if v.kind == 'short' %}{{ short_card(v) }}{% else %}{{ long_card(v) }}{% endif %}{% endfor %}</div>{% endif %}
 </div>
 {% endblock %}

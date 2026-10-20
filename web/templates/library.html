@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "_icons.html" import i %}
+{% block main %}
+<div class="container page" id="library" data-in="{{ 1 if user else 0 }}">
+  <div class="page-head"><h1>Library</h1></div>
+  {% if not user %}
+  <div class="state big-state">{{ i('heart', 'big') }}<h2>Login to see your likes and playlists</h2><p>Likes and playlists belong to your account.</p>
+    <div class="hero-cta"><a class="btn" href="/login?next=/library">{{ i('user') }}<span>Login</span></a><a class="btn ghost" href="https://t.me/{{ bot }}?start=acct" rel="noopener">{{ i('send') }}<span>Create account</span></a></div></div>
+  {% else %}
+  <div class="chips" role="tablist"><button class="chip" role="tab" data-tab="likes" aria-current="true">{{ i('heart') }} Liked</button><button class="chip" role="tab" data-tab="playlists">{{ i('list') }} Playlists</button></div>
+  <div id="lib-body"></div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}{% if user %}<script type="module" src="{{ asset('library.js') }}"></script>{% endif %}{% endblock %}

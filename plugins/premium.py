@@ -1,6 +1,7 @@
 """Plans, premium admin commands and the optional one-time trial."""
 from pyrogram import Client, filters
 
+import config
 import info
 import texts
 from bothelpers import say
@@ -29,14 +30,14 @@ async def send_plan(client, chat_id):
 
 @Client.on_message(filters.command("plan") & filters.private)
 async def plan(client, message):
-    if info.PREMIUM_AND_REFERRAL_MODE:
+    if (await config.get())["premium_mode"]:
         await send_plan(client, message.chat.id)
 
 
 @Client.on_callback_query(filters.regex(r"^plan$"))
 async def plan_cb(client, query):
     await query.answer()
-    if info.PREMIUM_AND_REFERRAL_MODE:
+    if (await config.get())["premium_mode"]:
         await send_plan(client, query.message.chat.id)
 
 
@@ -49,7 +50,7 @@ async def myplan(client, message):
 @Client.on_message(filters.command("trial") & filters.private)
 async def trial(client, message):
     delta = parse_duration(info.FREE_TRIAL_TIME)
-    if not (info.PREMIUM_AND_REFERRAL_MODE and delta):
+    if not ((await config.get())["premium_mode"] and delta):
         return
     if await users.use_trial(message.from_user.id):
         await users.add_premium(message.from_user.id, delta)

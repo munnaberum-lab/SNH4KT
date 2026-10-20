@@ -4,7 +4,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import info
 import texts
 from bothelpers import deep
-from utils import from_b36, shorten, sign, to_b36
+from utils import sc, from_b36, shorten, sign, to_b36
 
 
 def make_payload(uid, inner):
@@ -28,8 +28,8 @@ async def prompt(uid, inner, settings=None):
     site = (settings or {}).get("shortlink_url") or info.SHORTLINK_URL
     api = (settings or {}).get("shortlink_api") or info.SHORTLINK_API
     short = await shorten(url, site, api)
-    rows = [[InlineKeyboardButton("🔗 Get file", url=short)]]
+    rows = [[InlineKeyboardButton("🔗 " + sc("get file"), url=short)]]
     tut = (settings or {}).get("tutorial") or info.TUTORIAL
     if (info.IS_TUTORIAL or (settings or {}).get("tutorial")) and tut:
-        rows.append([InlineKeyboardButton("❓ How to open link", url=tut)])
+        rows.append([InlineKeyboardButton("❓ " + sc("how to open link"), url=tut)])
     return texts.SHORT_NEEDED, InlineKeyboardMarkup(rows)

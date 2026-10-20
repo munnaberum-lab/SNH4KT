@@ -5,6 +5,8 @@ from collections import defaultdict
 
 from aiohttp import web
 
+import access
+import config
 import info
 import state
 from database import files
@@ -12,6 +14,7 @@ from stream import clients, thumbs
 from stream.ranges import RangeError, chunk_plan, content_disposition, parse_range
 from stream.streamer import FileGone, streamer_for
 from utils import TTLCache, valid_sid
+from web import session
 
 log = logging.getLogger("stream.routes")
 _doc_cache = TTLCache(maxsize=500, ttl=60)
@@ -47,21 +50,32 @@ def forget(sid):
 async def serve_media(request, doc, attachment):
     if not info.STREAM_MODE:
         return err(503, "disabled", "Streaming is disabled")
-    if clients.active_streams() >= info.MAX_STREAMS:
-        return err(503, "busy", "Too many streams, retry shortly", {"Retry-After": "5"})
-    ip = _ip(request)
-    if _ip_streams[ip] >= info.PER_IP_STREAMS:
-        return err(429, "too_many", "Too many streams from your address", {"Retry-After": "5"})
     size = int(doc.get("size") or 0)
     try:
         start, end, partial = parse_range(request.headers.get("Range"), size)
     except RangeError:
         return web.Response(status=416, headers={"Content-Range": f"bytes */{size}"})
-    name = doc.get("name") or "file"
+    cfg = await config.get()
+    guarded = cfg["premium_mode"] or cfg["require_login"]
+    if guarded:  # who is asking? a logged in browser, or an external player with a signed key
+        uid = session.verify_stream_key(request.query.get("k", ""), doc["sid"]) if request.query.get("k") else None
+        if uid is None:
+            user = await session.load(request)
+            uid = user["uid"] if user else None
+        ok, reason = await access.check(uid, doc, "get" if attachment else "watch", consume=(attachment or start == 0), cfg=cfg)
+        if not ok:
+            status, code = {"login": (401, "login_required"), "premium": (403, "premium_only")}.get(reason, (403, "quota_reached"))
+            return err(status, code, access.MESSAGES[reason])
+    if clients.active_streams() >= info.MAX_STREAMS:
+        return err(503, "busy", "Too many streams, retry shortly", {"Retry-After": "5"})
+    ip = _ip(request)
+    if _ip_streams[ip] >= info.PER_IP_STREAMS:
+        return err(429, "too_many", "Too many streams from your address", {"Retry-After": "5"})
+    name = doc.get("title") or doc.get("name") or "file"
     mime = doc.get("mime") or mimetypes.guess_type(name)[0] or "application/octet-stream"
     headers = {
         "Content-Type": mime, "Content-Length": str(end - start + 1), "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff",
+        "Cache-Control": ("private" if guarded else "public") + ", max-age=3600", "X-Content-Type-Options": "nosniff",
         "Content-Disposition": content_disposition(name, attachment),
     }
     if partial:

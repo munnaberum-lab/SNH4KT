@@ -81,3 +81,15 @@ async def say(client, chat_id, text, markup=None, seconds=None, **kw):
     m = await client.send_message(chat_id, text, reply_markup=markup, **kw)
     await autodel(m, seconds)
     return m
+
+
+async def web_link(uid, path="/"):
+    """Website link that logs the user in automatically (single use token). Plain link when there is no account."""
+    from urllib.parse import quote
+    if not info.URL:
+        return None
+    from database import accounts
+    if not await accounts.has_account(uid):
+        return info.URL + path
+    token = await accounts.create_login_token(uid)
+    return f"{info.URL}/auth/tg?t={token}&next={quote(path, safe='/')}"

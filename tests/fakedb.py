@@ -117,6 +117,18 @@ def _apply(doc, update, inserting=False):
         elif op == "$unset":
             for k in fields:
                 doc.pop(k, None)
+        elif op == "$addToSet":
+            for k, v in fields.items():
+                cur = _get(doc, k)
+                cur = [] if cur is _MISSING else cur
+                if v not in cur:
+                    cur.append(copy.deepcopy(v))
+                _set(doc, k, cur)
+        elif op == "$pull":
+            for k, v in fields.items():
+                cur = _get(doc, k)
+                if cur is not _MISSING:
+                    _set(doc, k, [x for x in cur if x != v])
         else:
             raise NotImplementedError(op)
 
@@ -157,9 +169,25 @@ class Cursor:
 class Collection:
     def __init__(self):
         self.docs = []
+        self.unique = []
 
-    async def create_index(self, *a, **k):
+    def add_unique(self, *fields):
+        self.unique.append(fields)
+
+    async def create_index(self, keys, unique=False, **k):
+        if unique:
+            names = [keys] if isinstance(keys, str) else [x[0] for x in keys]
+            self.add_unique(*names)
         return "idx"
+
+    def _check_unique(self, doc, ignore=None):
+        for fields in self.unique:
+            vals = [_get(doc, f) for f in fields]
+            if any(v is _MISSING or v is None for v in vals):
+                continue
+            for d in self.docs:
+                if d is not ignore and [_get(d, f) for f in fields] == vals:
+                    raise DuplicateKeyError(f"dup {fields}")
 
     def _find(self, flt):
         return [d for d in self.docs if matches(d, flt)]
@@ -194,6 +222,7 @@ class Collection:
             doc["_id"] = next(_counter)
         if any(d["_id"] == doc["_id"] for d in self.docs):
             raise DuplicateKeyError("dup _id")
+        self._check_unique(doc)
         self.docs.append(doc)
         return _Res(upserted_id=doc["_id"])
 
@@ -201,6 +230,9 @@ class Collection:
         await asyncio.sleep(0)  # let other tasks interleave, like a real network call
         for d in self.docs:
             if matches(d, flt):
+                trial = copy.deepcopy(d)
+                _apply(trial, update)
+                self._check_unique(trial, ignore=d)
                 _apply(d, update)
                 return _Res(matched=1, modified=1)
         if upsert:
@@ -208,6 +240,7 @@ class Collection:
             _apply(new, update, inserting=True)
             if "_id" not in new:
                 new["_id"] = next(_counter)
+            self._check_unique(new)
             self.docs.append(new)
             return _Res(upserted_id=new["_id"])
         return _Res()

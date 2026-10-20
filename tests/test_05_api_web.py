@@ -6,7 +6,7 @@ from tests.base import DBCase
 from tests.helpers import make_public, video_msg
 import info
 import state
-from database import files, users
+from database import accounts, files, users
 from ingest import ingest
 from utils import utcnow
 from web import api, auth, pages, seo
@@ -120,66 +120,155 @@ class Public(DBCase):
 
 
 class Admin(DBCase):
+    """Owner panel: account ID + password + a one-time code sent to Telegram."""
+
     async def asyncSetUp(self):
         await seed()
-        self.old = info.WEB_ADMIN_PASSWORD
-        info.WEB_ADMIN_PASSWORD = "correct horse battery"
-        auth.login_limiter = RateLimiter(5, 600)
-        self.cookie = {auth.COOKIE: auth.make_cookie()}
-        self.h = {"X-Requested-With": "fetch"}
+        self.old_admins, self.old_main = info.ADMINS, state.main
+        info.ADMINS = [111]
+        self.sent = []
+
+        async def send_message(chat, text, **kw):
+            self.sent.append((chat, text))
+        state.main = NS(send_message=send_message)
+        auth.login_limiter, auth.aid_limiter, auth.otp_limiter = RateLimiter(5, 600), RateLimiter(5, 600), RateLimiter(10, 600)
+        self.aid, self.pw = await accounts.create(111, "owner_one")
+        await accounts.create(222, "just_user")
+        self.h = {"X-Requested-With": "fetch", "User-Agent": "UA1"}
+        self.cookie = {auth.COOKIE: auth.make_cookie(111, Req(headers=self.h))}
 
     async def asyncTearDown(self):
-        info.WEB_ADMIN_PASSWORD = self.old
+        info.ADMINS, state.main = self.old_admins, self.old_main
+
+    def req(self, **kw):
+        kw.setdefault("headers", self.h)
+        kw.setdefault("cookies", self.cookie)
+        return Req(**kw)
 
     async def test_admin_routes_need_the_cookie(self):
-        for call in (api.admin_stats(Req()), api.admin_videos(Req()), api.admin_patch(Req(match={"id": "x"}, method="PATCH", headers=self.h)),
-                     api.admin_delete(Req(match={"id": "x"}, method="DELETE", headers=self.h)), api.admin_thumb(Req(match={"id": "x"}, method="POST", headers=self.h))):
+        for call in (api.admin_stats(Req(headers=self.h)), api.admin_videos(Req()), api.admin_config_get(Req()),
+                     api.admin_patch(Req(match={"id": "x"}, method="PATCH", headers=self.h)), api.admin_bulk(Req(method="POST", headers=self.h)),
+                     api.admin_delete(Req(match={"id": "x"}, method="DELETE", headers=self.h)), api.admin_users(Req()), api.admin_audit(Req())):
             r = await call
             self.assertEqual((r.status, r.data["error"]["code"]), (401, "unauthorized"))
-        bad = await api.admin_stats(Req(cookies={auth.COOKIE: "1.deadbeef"}))
+        bad = await api.admin_stats(Req(cookies={auth.COOKIE: "111.1.abc.deadbeef"}, headers=self.h))
         self.assertEqual(bad.status, 401)
 
+    async def test_cookie_is_bound_to_browser_and_time_and_owner_list(self):
+        r = self.req()
+        self.assertEqual(auth.admin_uid(r), 111)
+        self.assertIsNone(auth.admin_uid(Req(cookies=self.cookie, headers={"User-Agent": "other browser"})))
+        now = time.time()
+        c = auth.make_cookie(111, r, now)
+        self.assertEqual(auth.uid_from_cookie(c, r, now + 60), 111)
+        self.assertIsNone(auth.uid_from_cookie(c, r, now + info.ADMIN_SESSION_MINUTES * 60 + 5))
+        stolen = auth.make_cookie(222, r)  # a valid signature for someone who is not an owner
+        self.assertIsNone(auth.uid_from_cookie(stolen, r))
+        info.ADMINS = []  # owner removed from ADMINS: cookie stops working at once
+        self.assertIsNone(auth.admin_uid(r))
+
     async def test_mutations_need_the_header(self):
-        r = await api.admin_patch(Req(match={"id": "x"}, method="PATCH", cookies=self.cookie, body={"hidden": True}))
+        r = await api.admin_patch(Req(match={"id": "x"}, method="PATCH", cookies=self.cookie, headers={"User-Agent": "UA1"}, body={"hidden": True}))
         self.assertEqual(r.status, 403)
 
-    async def test_login_flow_and_lockout(self):
-        h = self.h
-        r = await api.admin_login(Req(method="POST", headers=h, body={"password": "nope"}))
-        self.assertEqual(r.status, 401)
-        r = await api.admin_login(Req(method="POST", headers=h, body={"password": "correct horse battery"}))
-        self.assertEqual(r.status, 200)
-        (args, kw), = r.cookies_set
+    async def test_login_needs_password_and_telegram_code(self):
+        bad = await api.admin_start(Req(method="POST", headers=self.h, body={"id": "owner_one", "password": "wrong"}))
+        self.assertEqual(bad.status, 401)
+        notowner = await api.admin_start(Req(method="POST", headers=self.h, body={"id": "just_user", "password": "x"}))
+        self.assertEqual((notowner.status, notowner.data["error"]["message"]), (401, bad.data["error"]["message"]))  # same answer: owners are not revealed
+        self.assertEqual(self.sent, [])
+        ok = await api.admin_start(Req(method="POST", headers=self.h, body={"id": "owner_one", "password": self.pw}))
+        self.assertEqual(ok.status, 200)
+        chat, text = self.sent[-1]
+        code = text.split("<code>")[1].split("</code>")[0]
+        self.assertEqual((chat, len(code)), (111, 6))
+        wrong = await api.admin_verify(Req(method="POST", headers=self.h, body={"challenge": ok.data["challenge"], "code": "000000" if code != "000000" else "111111"}))
+        self.assertEqual(wrong.status, 401)
+        good = await api.admin_verify(Req(method="POST", headers=self.h, body={"challenge": ok.data["challenge"], "code": code}))
+        self.assertEqual(good.status, 200)
+        (args, kw), = good.cookies_set
         self.assertTrue(kw["httponly"] and kw["secure"] and kw["samesite"] == "Strict")
+        again = await api.admin_verify(Req(method="POST", headers=self.h, body={"challenge": ok.data["challenge"], "code": code}))
+        self.assertEqual(again.status, 401)  # a code works once
+
+    async def test_code_locks_after_three_wrong_tries_and_expires(self):
+        cid = await auth.start_login("owner_one", self.pw)
+        code = self.sent[-1][1].split("<code>")[1].split("</code>")[0]
+        for _ in range(3):
+            self.assertIsNone(await auth.verify_code(cid, "999999" if code != "999999" else "888888"))
+        self.assertIsNone(await auth.verify_code(cid, code))  # even the right code is refused now
+        cid2 = await auth.start_login("owner_one", self.pw)
+        code2 = self.sent[-1][1].split("<code>")[1].split("</code>")[0]
+        await self.db["admin_otp"].update_one({"_id": cid2}, {"$set": {"expires": utcnow() - timedelta(seconds=1)}})
+        self.assertIsNone(await auth.verify_code(cid2, code2))
+
+    async def test_login_lockout(self):
         for _ in range(5):
-            r = await api.admin_login(Req(method="POST", headers=h, body={"password": "nope"}))
+            await api.admin_start(Req(method="POST", headers=self.h, body={"id": "owner_one", "password": "nope"}))
+        r = await api.admin_start(Req(method="POST", headers=self.h, body={"id": "owner_one", "password": self.pw}))
         self.assertEqual(r.status, 429)
 
-    async def test_stats_patch_delete(self):
-        s = await api.admin_stats(Req(cookies=self.cookie))
+    async def test_videos_rename_tags_premium_bulk(self):
+        d = await files.get("V2")
+        r = await api.admin_patch(self.req(match={"id": d["sid"]}, method="PATCH", body={"title": "Brand New Name", "tags": "Action, Hindi, action, #bad!", "premium": True}))
+        self.assertEqual(r.status, 200)
+        d = await files.get("V2")
+        self.assertEqual((d["title"], d["tags"], d["premium"]), ("Brand New Name", ["action", "hindi", "bad"], True))
+        self.assertEqual(d["tokens"], ["brand", "new", "name", "action", "hindi", "bad"])
+        _, _, total = await files.search("brand new")
+        self.assertEqual(total, 1)
+        _, _, old = await files.search("long one")  # old name no longer matches
+        self.assertEqual(old, 0)
+        items, total, _ = await files.list_videos(tag="hindi")
+        self.assertEqual([x["_id"] for x in items], ["V2"])
+        self.assertEqual((await api.admin_patch(self.req(match={"id": d["sid"]}, method="PATCH", body={"title": "  "}))).status, 400)
+        sids = [(await files.get(u))["sid"] for u in ("V0", "V1")]
+        r = await api.admin_bulk(self.req(method="POST", body={"ids": sids, "action": "add_tag", "value": "Funny"}))
+        self.assertEqual(r.data["changed"], 2)
+        self.assertEqual((await files.get("V0"))["tags"], ["funny"])
+        await api.admin_bulk(self.req(method="POST", body={"ids": sids, "action": "premium", "value": True}))
+        self.assertTrue((await files.get("V1"))["premium"])
+        r = await api.admin_bulk(self.req(method="POST", body={"ids": sids, "action": "explode"}))
+        self.assertEqual(r.status, 400)
+        listing = await api.admin_videos(self.req(query={"premium": "1"}))
+        self.assertEqual(len(listing.data["items"]), 3)
+
+    async def test_config_and_audit(self):
+        r = await api.admin_config_put(self.req(method="PUT", body={"premium_mode": True, "free_watch_per_day": 3}))
+        self.assertEqual((r.data["config"]["premium_mode"], r.data["config"]["free_watch_per_day"]), (True, 3))
+        bad = await api.admin_config_put(self.req(method="PUT", body={"free_watch_per_day": -5}))
+        self.assertEqual(bad.status, 400)
+        self.assertTrue((await api.admin_config_get(self.req())).data["config"]["premium_mode"])
+        log = await api.admin_audit(self.req())
+        self.assertIn("config", [x["action"] for x in log.data["items"]])
+
+    async def test_users_premium_and_ban(self):
+        found = await api.admin_users(self.req(query={"q": "just_user"}))
+        self.assertEqual(found.data["items"][0]["uid"], 222)
+        r = await api.admin_user_premium(self.req(match={"uid": "222"}, method="POST", body={"days": 5}))
+        self.assertEqual(r.status, 200)
+        self.assertTrue(await users.is_premium(222))
+        self.assertEqual((await api.admin_user_premium(self.req(match={"uid": "222"}, method="POST", body={"days": 0}))).status, 400)
+        await api.admin_user_premium(self.req(match={"uid": "222"}, method="DELETE"))
+        self.assertFalse(await users.is_premium(222))
+        await api.admin_user_ban(self.req(match={"uid": "222"}, method="POST", body={"ban": True}))
+        self.assertTrue((await users.ban_status(222))["on"])
+        self.assertEqual((await api.admin_user_ban(self.req(match={"uid": "111"}, method="POST", body={"ban": True}))).status, 400)
+
+    async def test_stats_delete_and_kind(self):
+        s = await api.admin_stats(self.req())
         self.assertEqual((s.status, s.data["videos"], s.data["hidden"]), (200, 6, 1))
         d = await files.get("V0")
-        r = await api.admin_patch(Req(match={"id": d["sid"]}, method="PATCH", headers=self.h, cookies=self.cookie, body={"title": "New title", "kind_set": "long"}))
-        self.assertEqual(r.status, 200)
-        d = await files.get("V0")
-        self.assertEqual((d["title"], d["kind"], d["kind_set"]), ("New title", "long", "long"))
-        r = await api.admin_patch(Req(match={"id": d["sid"]}, method="PATCH", headers=self.h, cookies=self.cookie, body={"kind_set": None}))
+        await api.admin_patch(self.req(match={"id": d["sid"]}, method="PATCH", body={"kind_set": "long"}))
+        self.assertEqual((await files.get("V0"))["kind"], "long")
+        await api.admin_patch(self.req(match={"id": d["sid"]}, method="PATCH", body={"kind_set": None}))
         self.assertEqual((await files.get("V0"))["kind"], "short")
-        r = await api.admin_patch(Req(match={"id": d["sid"]}, method="PATCH", headers=self.h, cookies=self.cookie, body={"kind_set": "weird"}))
-        self.assertEqual(r.status, 400)
-        listing = await api.admin_videos(Req({"hidden": "1"}, cookies=self.cookie))
-        self.assertEqual([i["name"] for i in listing.data["items"]], ["Hidden Long"])
-        r = await api.admin_delete(Req(match={"id": d["sid"]}, method="DELETE", headers=self.h, cookies=self.cookie, body={"stream_copy": False}))
+        self.assertEqual((await api.admin_patch(self.req(match={"id": d["sid"]}, method="PATCH", body={"kind_set": "weird"}))).status, 400)
+        r = await api.admin_delete(self.req(match={"id": d["sid"]}, method="DELETE", body={"stream_copy": False}))
         self.assertEqual(r.status, 200)
         self.assertIsNone(await files.get("V0"))
 
-    def test_cookie_and_limiter(self):
-        now = time.time()
-        c = auth.make_cookie(now)
-        self.assertTrue(auth.verify_cookie(c, now + 10))
-        self.assertFalse(auth.verify_cookie(c, now + auth.MAX_AGE + 5))
-        self.assertFalse(auth.verify_cookie(c[:-2] + "00", now))
-        self.assertFalse(auth.verify_cookie("", now))
+    def test_limiter(self):
         rl = RateLimiter(2, 10)
         self.assertEqual([rl.allow("a", 0), rl.allow("a", 1), rl.allow("a", 2), rl.allow("a", 11)], [True, True, False, True])
 

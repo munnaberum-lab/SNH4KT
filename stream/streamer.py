@@ -76,28 +76,46 @@ class ByteStreamer:
         return raw.types.InputDocumentFileLocation(id=fid.media_id, access_hash=fid.access_hash,
                                                    file_reference=fid.file_reference, thumb_size=fid.thumbnail_size)
 
-    async def yield_file(self, fid, offset, first_cut, last_cut, part_count):
-        """Yield the requested bytes chunk by chunk. Stops as soon as the consumer stops iterating."""
+    async def yield_file(self, fid, offset, first_cut, last_cut, part_count, window=3):
+        """Yield the requested bytes. Up to `window` chunks are fetched ahead so the network never waits for the client."""
+        from collections import deque
         from pyrogram import raw
         from stream.ranges import slice_part
         ms = await self.media_session(fid)
         loc = self.location(fid)
-        part = 1
-        while part <= part_count:
-            try:
-                r = await ms.send(raw.functions.upload.GetFile(location=loc, offset=offset, limit=CHUNK))
-            except Exception as e:  # noqa
-                if type(e).__name__ == "FloodWait":
-                    await asyncio.sleep(int(getattr(e, "value", 3)) + 1)
-                    r = await ms.send(raw.functions.upload.GetFile(location=loc, offset=offset, limit=CHUNK))
-                else:
+
+        async def fetch(off):
+            for attempt in (1, 2):
+                try:
+                    r = await ms.send(raw.functions.upload.GetFile(location=loc, offset=off, limit=CHUNK))
+                    return getattr(r, "bytes", b"")
+                except Exception as e:  # noqa
+                    if attempt == 1 and type(e).__name__ == "FloodWait":
+                        await asyncio.sleep(int(getattr(e, "value", 3)) + 1)
+                        continue
                     raise
-            chunk = getattr(r, "bytes", b"")
-            if not chunk:
-                break
-            yield slice_part(chunk, part, part_count, first_cut, last_cut)
-            part += 1
-            offset += CHUNK
+
+        pending, scheduled = deque(), 0
+
+        def schedule():
+            nonlocal scheduled
+            while scheduled < part_count and len(pending) < window:
+                pending.append(asyncio.ensure_future(fetch(offset + scheduled * CHUNK)))
+                scheduled += 1
+
+        schedule()
+        part = 1
+        try:
+            while pending:
+                chunk = await pending.popleft()
+                schedule()
+                if not chunk:
+                    break
+                yield slice_part(chunk, part, part_count, first_cut, last_cut)
+                part += 1
+        finally:
+            for t in pending:  # the viewer left: stop fetching right away
+                t.cancel()
 
 
 _streamers = {}

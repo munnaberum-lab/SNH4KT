@@ -5,14 +5,16 @@ import logging
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+import access
+import config
 import enrichment
 import info
 import state
 import texts
-from bothelpers import autodel, say
+from bothelpers import autodel, say, web_link
 from database import files, groups, users
 from database import verify as vdb
-from utils import TTLCache, b64d, fmt, human_size, valid_sid
+from utils import TTLCache, b64d, fmt, human_size, sc, valid_sid
 
 log = logging.getLogger("delivery")
 SEND_ALL = TTLCache(maxsize=2000, ttl=3600)   # key -> {"sids": [...], "gid": int|None}
@@ -40,24 +42,39 @@ def parse_payload(payload):
     return None
 
 
-def stream_markup(doc):
+async def stream_markup(doc, uid=None):
     if not (info.STREAM_MODE and info.URL and doc.get("type") == "video" and doc.get("sid")):
         return None
-    path = "shorts" if doc.get("kind") == "short" else "watch"
-    return InlineKeyboardMarkup([[InlineKeyboardButton(texts.STREAM_BTN, url=f"{info.URL}/{path}/{doc['sid']}")]])
+    path = f"/{'shorts' if doc.get('kind') == 'short' else 'watch'}/{doc['sid']}"
+    url = (await web_link(uid, path)) if uid and uid > 0 else None
+    return InlineKeyboardMarkup([[InlineKeyboardButton(texts.STREAM_BTN, url=url or info.URL + path)]])
+
+
+def deny_markup(reason):
+    rows = []
+    if reason in ("premium", "quota"):
+        rows.append([InlineKeyboardButton("💎 " + sc("get premium"), callback_data="plan")])
+    return InlineKeyboardMarkup(rows) if rows else None
+
+
+async def deny(client, chat_id, reason):
+    text = {"premium": "💎 <b>" + sc("premium only") + "</b>\n\n" + sc("this video is for premium members."),
+            "quota": "⏳ <b>" + sc("daily free limit reached") + "</b>\n\n" + sc("come back tomorrow or get premium for unlimited access."),
+            }.get(reason, "🔒 " + sc("login required"))
+    await say(client, chat_id, text, deny_markup(reason))
 
 
 async def send_doc(client, chat_id, doc, protect=False, caption_tpl=None):
-    caption = fmt(caption_tpl or info.CUSTOM_FILE_CAPTION, file_name=doc.get("name", ""), file_size=human_size(doc.get("size", 0)),
+    caption = fmt(caption_tpl or info.CUSTOM_FILE_CAPTION, file_name=doc.get("title") or doc.get("name", ""), file_size=human_size(doc.get("size", 0)),
                   file_caption=doc.get("caption") or "")
     try:
         m = await client.send_cached_media(chat_id, doc["file_id"], caption=caption, protect_content=bool(protect),
-                                           reply_markup=stream_markup(doc))
+                                           reply_markup=await stream_markup(doc, chat_id))
     except Exception as e:  # noqa
         if type(e).__name__ == "FloodWait":
             await asyncio.sleep(int(getattr(e, "value", 3)) + 1)
             m = await client.send_cached_media(chat_id, doc["file_id"], caption=caption, protect_content=bool(protect),
-                                               reply_markup=stream_markup(doc))
+                                               reply_markup=await stream_markup(doc, chat_id))
         else:
             log.warning("send failed for %s: %s", doc.get("_id"), e)
             await say(client, chat_id, texts.FILE_NOT_FOUND)
@@ -80,7 +97,7 @@ async def gate(client, user, chat_id, payload, gid=None, via_short=False):
         await say(client, chat_id, blocked[0], blocked[1])
         return None
     settings = await groups.get_settings(gid) if gid else {}
-    premium = info.PREMIUM_AND_REFERRAL_MODE and await users.is_premium(uid)
+    premium = (await config.get())["premium_mode"] and await users.is_premium(uid)
     if not premium and info.VERIFY and not await vdb.is_verified_today(uid):
         text, markup = await verify.prompt(uid, payload)
         await say(client, chat_id, text, markup)
@@ -110,7 +127,11 @@ async def handle_payload(client, user, chat_id, payload, via_short=False):
         if not doc:
             await say(client, chat_id, texts.FILE_NOT_FOUND)
         else:
-            await send_doc(client, chat_id, doc, protect, caption)
+            ok, reason = await access.check(user.id, doc, "get", consume=True)
+            if not ok:
+                await deny(client, chat_id, reason)
+            else:
+                await send_doc(client, chat_id, doc, protect, caption)
     elif kind == "all":
         entry = SEND_ALL.get(ref)
         if not entry:
@@ -119,6 +140,10 @@ async def handle_payload(client, user, chat_id, payload, via_short=False):
         for sid in entry["sids"]:
             doc = await files.get_by_sid(sid)
             if doc:
+                ok, reason = await access.check(user.id, doc, "get", consume=True)
+                if not ok:
+                    await deny(client, chat_id, reason)
+                    break
                 await send_doc(client, chat_id, doc, protect, caption)
                 await asyncio.sleep(0.6)
     elif kind == "batch":

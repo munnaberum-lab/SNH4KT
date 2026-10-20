@@ -1,31 +1,49 @@
 {% extends "base.html" %}
 {% from "_cards.html" import long_card, short_card, empty %}
+{% from "_icons.html" import i %}
 {% block main %}
-<div class="wrap">
+<section class="hero">
+  <div class="container hero-in">
+    <span class="eyebrow">{{ i('play') }} Stream • Download • Share</span>
+    <h1>{{ site }}</h1>
+    <p class="lead">{{ meta.description }}</p>
+    <form class="hero-search" action="/search" method="get" role="search">
+      <input name="q" type="search" placeholder="Search videos, tags…" aria-label="Search" enterkeyhint="search">
+      <button class="btn" type="submit">{{ i('search') }}<span>Search</span></button>
+    </form>
+    <div class="hero-cta">
+      <a class="btn" href="/shorts">{{ i('shorts') }}<span>Watch Shorts</span></a>
+      <a class="btn ghost" href="/long">{{ i('film') }}<span>Browse videos</span></a>
+    </div>
+    {% if counts.short or counts.long %}<ul class="hero-stats"><li><b>{{ counts.short }}</b> shorts</li><li><b>{{ counts.long }}</b> videos</li></ul>{% endif %}
+  </div>
+</section>
+<div class="container page">
 {% if not shorts and not longs %}
   {{ empty("No videos yet. Add files to your channel and they will appear here.") }}
 {% endif %}
+{% if tags %}<div class="chips tagrow" aria-label="Popular tags">{% for t in tags %}<a class="chip" href="/tag/{{ t|urlencode }}">{{ i('tag') }}#{{ t }}</a>{% endfor %}</div>{% endif %}
 {% if shorts %}
 <section aria-labelledby="h-shorts">
-  <div class="sec-head"><h2 id="h-shorts">Shorts</h2><a href="/shorts">See all</a></div>
+  <div class="sec-head"><h2 id="h-shorts">{{ i('shorts') }} Shorts</h2><a class="more-link" href="/shorts">See all {{ i('right') }}</a></div>
   <div class="shelf-wrap">
-    <button class="arrow left" type="button" aria-label="Scroll left" hidden>‹</button>
+    <button class="arrow left" type="button" aria-label="Scroll left" hidden>{{ i('left') }}</button>
     <div class="shelf" id="shelf">{% for v in shorts %}{{ short_card(v) }}{% endfor %}
-      <a class="scard end" href="/shorts"><span>See all<br>Shorts →</span></a></div>
-    <button class="arrow right" type="button" aria-label="Scroll right" hidden>›</button>
+      <a class="scard end" href="/shorts"><span>See all<br>Shorts {{ i('right') }}</span></a></div>
+    <button class="arrow right" type="button" aria-label="Scroll right" hidden>{{ i('right') }}</button>
   </div>
 </section>
 {% endif %}
 {% if longs %}
 <section aria-labelledby="h-long">
-  <div class="sec-head"><h2 id="h-long">Long videos</h2><a href="/long">See all</a></div>
+  <div class="sec-head"><h2 id="h-long">{{ i('film') }} Latest videos</h2><a class="more-link" href="/long">See all {{ i('right') }}</a></div>
   <div class="grid" id="grid">{% for v in longs %}{{ long_card(v) }}{% endfor %}</div>
-  {% if more %}<div class="more"><button class="btn" id="more" type="button" data-api="/api/v1/videos?kind=long" data-page="1" data-target="grid">Show more</button></div>{% endif %}
+  {% if more %}<div class="more"><button class="btn ghost" id="more" type="button" data-api="/api/v1/videos?kind=long" data-page="1" data-target="grid">Show more</button></div>{% endif %}
 </section>
 {% endif %}
 {% if popular %}
 <section aria-labelledby="h-pop">
-  <div class="sec-head"><h2 id="h-pop">Popular</h2></div>
+  <div class="sec-head"><h2 id="h-pop">{{ i('trend') }} Popular</h2></div>
   <div class="row">{% for v in popular %}{% if v.kind == 'short' %}{{ short_card(v) }}{% else %}{{ long_card(v) }}{% endif %}{% endfor %}</div>
 </section>
 {% endif %}

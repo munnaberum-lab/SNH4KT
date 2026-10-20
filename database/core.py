@@ -72,3 +72,13 @@ async def create_indexes():
     await o("join_reqs").create_index([("uid", 1), ("chan", 1)])
     await o("filters").create_index([("group", 1), ("text", 1)])
     await o("requests").create_index("uid")
+    await o("accounts").create_index("aid", unique=True)
+    await o("likes").create_index([("uid", 1), ("sid", 1)], unique=True)
+    await o("likes").create_index([("uid", 1), ("at", -1)])
+    await o("playlists").create_index("uid")
+    await o("login_tokens").create_index("expires", expireAfterSeconds=0)
+    await o("admin_otp").create_index("expires", expireAfterSeconds=0)
+    await o("quota").create_index("expires", expireAfterSeconds=0)
+    await o("audit").create_index([("at", -1)])
+    for c in store.files_cols:
+        await c.create_index("tags")

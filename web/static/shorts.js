@@ -1,4 +1,5 @@
-import { esc, views, ago } from "./cards.js";
+import { esc, views, ago, ic } from "./cards.js";
+import { toggleLike, openSave, bot } from "./social.js";
 const body = document.body, feed = document.getElementById("feed");
 const dlPublic = body.dataset.dlPublic === "1";
 const batch = Number(body.dataset.batch) || 10;
@@ -18,17 +19,19 @@ function build(v, idx) {
     <div class="backdrop" style="background-image:url('/thumb/${esc(v.id)}.jpg')"></div>
     <img class="poster" src="/thumb/${esc(v.id)}.jpg" alt="" ${idx === 0 ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async">
     <video playsinline loop muted preload="none"></video>
-    <div class="s-top"><button class="rb back" type="button" aria-label="Back">‹</button><b>Shorts</b><button class="rb mute" type="button" aria-label="Mute"></button></div>
+    <div class="s-top"><button class="rb back" type="button" aria-label="Back">${ic("left")}</button><b>Shorts</b><button class="rb mute" type="button" aria-label="Mute"></button></div>
     <div class="s-bot"><div class="t" role="button" tabindex="0">${esc(v.title)}</div><div class="m">${views(v.views)}${v.added ? " · " + ago(v.added) : ""}</div></div>
     <div class="bar" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100"><i></i></div>
-    <div class="flash" aria-hidden="true">▶</div><div class="spin"></div>
+    <div class="flash" aria-hidden="true">${ic("play")}</div><div class="spin"></div>
     <div class="err"><p>This video could not be played.</p><div class="row2"><button class="btn retry" type="button">Retry</button><button class="btn ghost skip" type="button">Skip</button></div></div>
     ${v.playable ? "" : `<div class="dlonly"><a class="btn" href="${esc(dl)}" ${dlPublic ? "download" : ""}>Download only</a></div>`}
   </div>
   <div class="rail">
-    <div class="col"><button class="rb share" type="button" aria-label="Share">⤴</button>Share</div>
-    <div class="col"><a class="rb" href="${esc(dl)}" ${dlPublic ? "download" : ""} aria-label="Download">⬇</a>Save</div>
-    <div class="col"><a class="rb" href="${esc(v.urls.telegram)}" rel="noopener" aria-label="Open in Telegram">✈</a>Telegram</div>
+    <div class="col"><button class="rb like${v.liked ? " on" : ""}" type="button" aria-label="Like" aria-pressed="${v.liked}">${ic("heart")}</button><span class="lc">${v.likes || 0}</span></div>
+    <div class="col"><button class="rb save" type="button" aria-label="Save to playlist">${ic("list")}</button>Save</div>
+    <div class="col"><button class="rb share" type="button" aria-label="Share">${ic("share")}</button>Share</div>
+    <div class="col"><a class="rb" href="${esc(dl)}" ${dlPublic ? "download" : ""} aria-label="Download">${ic("download")}</a>Save</div>
+    <div class="col"><a class="rb" href="${esc(v.urls.telegram)}" rel="noopener" aria-label="Open in Telegram">${ic("send")}</a>Telegram</div>
     <div class="col"><button class="rb mute" type="button" aria-label="Mute"></button>Sound</div>
   </div></div>`;
   const it = { v, el, stage: el.querySelector(".stage"), video: el.querySelector("video"), counted: false, i: idx };
@@ -45,18 +48,33 @@ function wire(it) {
     try { if (navigator.share) await navigator.share({ title: v.title, url: v.urls.page }); else { await navigator.clipboard.writeText(v.urls.page); toast("Link copied"); } }
     catch (e) { /* cancelled */ }
   };
+  el.querySelector(".like").onclick = (e) => toggleLike(v.id, e.currentTarget);
+  el.querySelector(".save").onclick = () => openSave(v.id);
   el.querySelector(".t").onclick = (e) => e.currentTarget.classList.toggle("open");
   stage.addEventListener("click", (e) => {
     if (e.target.closest("button,a,.bar,.t,.err")) return;
     if (!video.getAttribute("src")) return;
     if (video.paused) video.play().catch(() => {}); else video.pause();
-    flash.textContent = video.paused ? "❚❚" : "▶";
+    flash.innerHTML = ic(video.paused ? "pause" : "play");
     flash.classList.remove("on"); void flash.offsetWidth; flash.classList.add("on");
   });
   video.addEventListener("waiting", () => spin.classList.add("on"));
   video.addEventListener("stalled", () => spin.classList.add("on"));
   ["playing", "canplay", "seeked"].forEach((n) => video.addEventListener(n, () => spin.classList.remove("on")));
-  video.addEventListener("error", () => { if (video.getAttribute("src")) { spin.classList.remove("on"); err.classList.add("on"); } });
+  video.addEventListener("error", async () => {
+    if (!video.getAttribute("src")) return;
+    spin.classList.remove("on");
+    try {  // is it locked for this viewer? then explain instead of showing a retry button
+      const a = await (await fetch(`/api/v1/videos/${v.id}/access`, { credentials: "same-origin" })).json();
+      if (a.ok === false) {
+        const login = a.reason === "login";
+        err.innerHTML = `${ic("lock", "big")}<p><b>${login ? "Login required" : a.reason === "quota" ? "Daily free limit reached" : "Premium only"}</b><br>${esc(a.message)}</p><div class="row2">${login ? `<a class="btn" href="/login?next=${encodeURIComponent("/shorts/" + v.id)}">Login</a><a class="btn ghost" href="https://t.me/${esc(bot())}?start=acct">Create account</a>` : `<a class="btn" href="https://t.me/${esc(bot())}?start=plan">Get premium</a>`}<button class="btn ghost skip" type="button">Skip</button></div>`;
+        err.querySelector(".skip").onclick = () => go(1);
+        return err.classList.add("on");
+      }
+    } catch (e) { /* fall through to retry */ }
+    err.classList.add("on");
+  });
   video.addEventListener("loadedmetadata", () => {
     const r = video.videoWidth / video.videoHeight;
     stage.classList.toggle("fit", Math.abs(r - 9 / 16) / (9 / 16) > 0.08);
@@ -75,7 +93,7 @@ function wire(it) {
   paintMute(el);
 }
 
-const paintMute = (root) => root.querySelectorAll(".mute").forEach((b) => { b.textContent = muted ? "🔇" : "🔊"; b.setAttribute("aria-label", muted ? "Unmute" : "Mute"); });
+const paintMute = (root) => root.querySelectorAll(".mute").forEach((b) => { b.innerHTML = ic(muted ? "mute" : "volume"); b.setAttribute("aria-label", muted ? "Unmute" : "Mute"); });
 function setMuted(m) {
   muted = m; store.set("shorts_muted", m ? "1" : "0");
   items.forEach((it) => { it.video.muted = muted; paintMute(it.el); });

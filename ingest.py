@@ -1,6 +1,7 @@
 """One function used by auto index, /index, /enrich, /stream and uploads."""
 import logging
 
+import config
 import enrichment
 import info
 from database import files
@@ -58,7 +59,7 @@ def build_doc(msg, source="channel"):
         **meta,
         "caption": caption,
         "src": {"chat": chat, "msg": getattr(msg, "id", 0)},
-        "views": 0, "dl": 0, "hidden": False, "ok": True,
+        "views": 0, "dl": 0, "likes": 0, "tags": [], "hidden": False, "ok": True,
     }
 
 
@@ -68,6 +69,8 @@ async def ingest(msg, source="channel"):
         doc = build_doc(msg, source)
         if doc is None:
             return "skipped"
+        if doc["type"] == "video" and (await config.get())["default_new_premium"]:
+            doc["premium"] = True
         result = await files.insert(doc)
         if result == "saved" and doc["type"] == "video":
             enrichment.enqueue(doc["_id"])

@@ -316,3 +316,11 @@ def to_b36(n):
 
 def from_b36(s):
     return int(s, 36)
+
+
+_SC = dict(zip("abcdefghijklmnopqrstuvwxyz", "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ"))
+
+
+def sc(text):
+    """Small caps for plain text (a-z only). Do not pass HTML tags or {placeholders}."""
+    return "".join(_SC.get(c, c) for c in (text or "").lower())

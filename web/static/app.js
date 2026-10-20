@@ -8,6 +8,17 @@ $("#theme")?.addEventListener("click", () => {
   try { localStorage.setItem("theme", next); } catch (e) { /* ignore */ }
 });
 
+// mobile search overlay
+(function () {
+  const top = $("#top"), openBtn = $("#open-search"), closeBtn = $("#close-search"), input = $("#q");
+  if (!top || !openBtn) return;
+  const open = () => { top.classList.add("search-open"); input?.focus(); };
+  const close = () => top.classList.remove("search-open");
+  openBtn.addEventListener("click", open);
+  closeBtn?.addEventListener("click", close);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+})();
+
 // live search suggestions (debounce 200 ms, top 6, keyboard up/down/enter)
 (function () {
   const input = $("#q"), list = $("#sugg");
