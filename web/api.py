@@ -151,6 +151,21 @@ async def video_access(request):
     return web.json_response({"ok": ok, "reason": reason, "message": access.MESSAGES.get(reason, "")}, headers=PRIVATE)
 
 
+async def video_play(request):
+    """Playable URL for the mobile app (adds a signed stream key for logged-in users)."""
+    d = await _public_video(request.match_info["id"])
+    if not d:
+        return jerr(404, "not_found", "Video not found")
+    user = await session.load(request)
+    ok, reason = await access.check(user["uid"] if user else None, d, "watch")
+    if not ok:
+        return jerr(403, reason or "forbidden", access.MESSAGES.get(reason, "Not allowed"))
+    url = f"{base_url(request)}/stream/{d['sid']}"
+    if user:
+        url += "?k=" + session.stream_key(user["uid"], d["sid"])
+    return web.json_response({"url": url}, headers=PRIVATE)
+
+
 async def suggest_for(request):
     d = await _public_video(request.match_info["id"])
     if not d:
@@ -237,7 +252,7 @@ async def login(request):
     if not acc:
         return jerr(401, "bad_login", "Wrong ID or password.")
     user_aid_limiter.reset(aid)
-    resp = web.json_response({"ok": True, "aid": acc["aid"]}, headers=PRIVATE)
+    resp = web.json_response({"ok": True, "aid": acc["aid"], "token": await session.make_token(acc["_id"])}, headers=PRIVATE)
     await session.set_cookie(resp, acc["_id"])
     return resp
 
@@ -688,6 +703,7 @@ def add_routes(app):
     r.add_get("/api/v1/videos", list_videos)
     r.add_get("/api/v1/videos/{id}", get_video)
     r.add_get("/api/v1/videos/{id}/access", video_access)
+    r.add_get("/api/v1/videos/{id}/play", video_play)
     r.add_get("/api/v1/videos/{id}/suggest", suggest_for)
     r.add_get("/api/v1/shorts", shorts_feed)
     r.add_post("/api/v1/videos/{id}/view", add_view)
