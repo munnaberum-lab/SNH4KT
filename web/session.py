@@ -27,9 +27,23 @@ def parse_cookie(value, now=None):
     return (uid, ver) if hmac.compare_digest(sig, sign("ut", uid, ver, ts, size=32)) else None
 
 
+def _raw_token(request):
+    """Mobile app sends 'Authorization: Bearer <token>'; the website sends the cookie."""
+    auth = (getattr(request, "headers", None) or {}).get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:].strip()
+    return getattr(request, "cookies", {}).get(COOKIE, "")
+
+
+async def make_token(uid):
+    """Token for the mobile app (same signed value as the cookie)."""
+    cur = await accounts.session_info(uid)
+    return make_cookie(uid, cur[1])
+
+
 async def load(request):
     """The logged in user {'uid','aid'} or None. One cached lookup per 30 seconds."""
-    parsed = parse_cookie(getattr(request, "cookies", {}).get(COOKIE, ""))
+    parsed = parse_cookie(_raw_token(request))
     if not parsed:
         return None
     uid, ver = parsed
