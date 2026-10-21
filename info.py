@@ -84,8 +84,8 @@ SUPPORT_CHAT = _str("SUPPORT_CHAT")
 PICS = _list("PICS")
 
 # ---- database -------------------------------------------------------------
-DATABASE_NAME = _str("DATABASE_NAME", "Dotxseyabot")
-COLLECTION_NAME = _str("COLLECTION_NAME", "SEYA")
+DATABASE_NAME = _str("DATABASE_NAME", "alfa")
+COLLECTION_NAME = _str("COLLECTION_NAME", "omega")
 MULTIPLE_DATABASE = _bool("MULTIPLE_DATABASE")
 O_DB_URI = _str("O_DB_URI")
 F_DB_URI = _str("F_DB_URI")
